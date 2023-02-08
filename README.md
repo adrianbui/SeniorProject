@@ -1,3 +1,3 @@
 # SeniorProject
 
-Team VSCode Repo for CSCI 5523 - Senior Software Project
+Team repository for CSCI 5523 - Senior Software Project
