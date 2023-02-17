@@ -17,6 +17,8 @@ import {
 	InitializeResult
 } from 'vscode-languageserver/node';
 
+import * as YAML from "yaml";
+
 import {
 	TextDocument
 } from 'vscode-languageserver-textdocument';
@@ -137,11 +139,12 @@ documents.onDidChangeContent(change => {
 async function validateTextDocument(textDocument: TextDocument): Promise<void> {
 	// In this simple example we get the settings for every validate run.
 	const settings = await getDocumentSettings(textDocument.uri);
-	console.log('document changed');
-	console.log(textDocument);
-
+	console.log('current textDocument: ', textDocument)
 	// The validator creates diagnostics for all uppercase words length 2 and more
 	const text = textDocument.getText();
+	const parsedYAML = YAML.parse(text);
+	console.log('Parsed YAML:')
+	console.log(parsedYAML);
 	const pattern = /\b[A-Z]{2,}\b/g;
 	let m: RegExpExecArray | null;
 

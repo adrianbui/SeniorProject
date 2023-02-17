@@ -17,12 +17,27 @@
 		"vscode": "^1.74.0"
 	},
 	"activationEvents": [
-		"onLanguage:plaintext",
-		"onLanguage:yaml",
-		"onLanguage:sigma"
+		"onLanguage:plaintext"
 	],
 	"main": "./client/out/extension",
 	"contributes": {
+		"languages": [
+			{
+			"id": "sigma",
+			"aliases": [
+				"sigma",
+				"sigma-syntax",
+				"sigmalang",
+				"SIGMA",
+				"Sigma"
+			],
+			"icon": {
+				"light": "./images/Sigma_Icon_trans.png",
+				"dark": "./images/Sigma_Icon_trans.png"
+			},
+			"configuration": "./language-configuration.json",
+			"firstLine": "/^title: .*$/"
+			}],
 		"configuration": {
 			"type": "object",
 			"title": "Example configuration",
