@@ -139,18 +139,20 @@ documents.onDidChangeContent(change => {
 async function validateTextDocument(textDocument: TextDocument): Promise<void> {
 	// In this simple example we get the settings for every validate run.
 	const settings = await getDocumentSettings(textDocument.uri);
-	console.log('current textDocument: ', textDocument)
+	console.log('current textDocument: ', textDocument);
 	// The validator creates diagnostics for all uppercase words length 2 and more
 	const text = textDocument.getText();
 	const parsedYAML = YAML.parse(text);
-	console.log('Parsed YAML:')
+	console.log('Parsed YAML:');
 	console.log(parsedYAML);
 	const pattern = /\b[A-Z]{2,}\b/g;
+	const pattern2 = /^title:.{8,}/g;
 	let m: RegExpExecArray | null;
+	let m2: RegExpExecArray | null;
 
 	let problems = 0;
 	const diagnostics: Diagnostic[] = [];
-	while ((m = pattern.exec(text)) && problems < settings.maxNumberOfProblems) {
+	while ((m = pattern.exec(text)) && (m2 = pattern2.exec(text)) && problems < settings.maxNumberOfProblems) {
 		problems++;
 		const diagnostic: Diagnostic = {
 			severity: DiagnosticSeverity.Warning,
@@ -161,6 +163,17 @@ async function validateTextDocument(textDocument: TextDocument): Promise<void> {
 			message: `${m[0]} is all uppercase.`,
 			source: 'ex'
 		};
+
+		const titlediagnostic: Diagnostic = {
+			severity: DiagnosticSeverity.Warning,
+			range: {
+				start: textDocument.positionAt(m2.index),
+				end: textDocument.positionAt(m2.index + m2[0].length)
+			},
+			message: `${m2[0]} is too long`,
+			source: 'ex'
+		};
+
 		if (hasDiagnosticRelatedInformationCapability) {
 			diagnostic.relatedInformation = [
 				{
@@ -178,8 +191,26 @@ async function validateTextDocument(textDocument: TextDocument): Promise<void> {
 					message: 'Particularly for names'
 				}
 			];
+				titlediagnostic.relatedInformation = [
+				{
+					location: {
+						uri: textDocument.uri,
+						range: Object.assign({}, titlediagnostic.range)
+					},
+					message: 'Title Too Long'
+				},
+				{
+					location: {
+						uri: textDocument.uri,
+						range: Object.assign({}, titlediagnostic.range)
+					},
+					message: 'Particularly for firstline'
+				}
+			];
 		}
+
 		diagnostics.push(diagnostic);
+		diagnostics.push(titlediagnostic);
 	}
 
 	// Send the computed diagnostics to VSCode.
@@ -197,7 +228,7 @@ connection.onCompletion(
 		// The pass parameter contains the position of the text document in
 		// which code complete got requested. For the example we ignore this
 		// info and always provide the same completion items.
-	console.log("onCompletion called")
+	console.log("onCompletion called");
 
 		return [
 			{
