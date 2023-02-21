@@ -22,6 +22,7 @@ import * as YAML from "yaml";
 import {
 	TextDocument
 } from 'vscode-languageserver-textdocument';
+import { error } from 'console';
 
 // Create a connection for the server, using Node's IPC as a transport.
 // Also include all preview / proposed LSP features.
@@ -128,6 +129,7 @@ function getDocumentSettings(resource: string): Thenable<ExampleSettings> {
 // Only keep settings for open documents
 documents.onDidClose(e => {
 	documentSettings.delete(e.document.uri);
+	connection.sendDiagnostics({ uri: e.document.uri, diagnostics: [] })
 });
 
 // The content of a text document has changed. This event is emitted
@@ -142,17 +144,36 @@ async function validateTextDocument(textDocument: TextDocument): Promise<void> {
 	console.log('current textDocument: ', textDocument);
 	// The validator creates diagnostics for all uppercase words length 2 and more
 	const text = textDocument.getText();
-	const parsedYAML = YAML.parse(text);
-	console.log('Parsed YAML:');
-	console.log(parsedYAML);
+	const diagnostics: Diagnostic[] = [];
+
+	// let parsedYamlDoc = YAML.parseDocument(text);
+	// console.log('parseYamlDoc errors: ', parsedYamlDoc.errors)
+	try {
+		const parsedYAML = YAML.parse(text);
+	} catch (error) {
+		console.log(error)
+		if (error instanceof Error) {
+			const newDiagnostic: Diagnostic = {
+				severity: DiagnosticSeverity.Error,
+				range: {
+					start: textDocument.positionAt((error as any).pos[0]),
+					end: textDocument.positionAt((error as any).pos[1])
+				},
+				message: error.message,
+				source: 'umn-sigma-lsp'
+			}
+			diagnostics.push(newDiagnostic)
+		}
+	}
+	
 	const pattern = /\b[A-Z]{2,}\b/g;
 	const pattern2 = /^title:.{8,}/g;
 	let m: RegExpExecArray | null;
 	let m2: RegExpExecArray | null;
 
 	let problems = 0;
-	const diagnostics: Diagnostic[] = [];
-	while ((m = pattern.exec(text)) && (m2 = pattern2.exec(text)) && problems < settings.maxNumberOfProblems) {
+	
+	while ((m = pattern.exec(text)) && (m2 = pattern.exec(text)) && problems < settings.maxNumberOfProblems) {
 		problems++;
 		const diagnostic: Diagnostic = {
 			severity: DiagnosticSeverity.Warning,
