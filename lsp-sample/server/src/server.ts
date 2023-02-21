@@ -145,13 +145,16 @@ async function validateTextDocument(textDocument: TextDocument): Promise<void> {
 	// The validator creates diagnostics for all uppercase words length 2 and more
 	const text = textDocument.getText();
 	const diagnostics: Diagnostic[] = [];
+	let m: RegExpExecArray | null;
+	let m2: RegExpExecArray | null;
+	let problems = 0;
 
 	// let parsedYamlDoc = YAML.parseDocument(text);
 	// console.log('parseYamlDoc errors: ', parsedYamlDoc.errors)
 	try {
 		const parsedYAML = YAML.parse(text);
 	} catch (error) {
-		console.log(error)
+		console.log(error);
 		if (error instanceof Error) {
 			const newDiagnostic: Diagnostic = {
 				severity: DiagnosticSeverity.Error,
@@ -168,12 +171,8 @@ async function validateTextDocument(textDocument: TextDocument): Promise<void> {
 	
 	const pattern = /\b[A-Z]{2,}\b/g;
 	const pattern2 = /^title:.{8,}/g;
-	let m: RegExpExecArray | null;
-	let m2: RegExpExecArray | null;
-
-	let problems = 0;
 	
-	while ((m = pattern.exec(text)) && (m2 = pattern.exec(text)) && problems < settings.maxNumberOfProblems) {
+	while ((m = pattern.exec(text)) && (m2 = pattern2.exec(text)) && problems < settings.maxNumberOfProblems) {
 		problems++;
 		const diagnostic: Diagnostic = {
 			severity: DiagnosticSeverity.Warning,
@@ -185,7 +184,7 @@ async function validateTextDocument(textDocument: TextDocument): Promise<void> {
 			source: 'ex'
 		};
 
-		const titlediagnostic: Diagnostic = {
+		const titleDiagnostic: Diagnostic = {
 			severity: DiagnosticSeverity.Warning,
 			range: {
 				start: textDocument.positionAt(m2.index),
@@ -212,18 +211,18 @@ async function validateTextDocument(textDocument: TextDocument): Promise<void> {
 					message: 'Particularly for names'
 				}
 			];
-				titlediagnostic.relatedInformation = [
+				titleDiagnostic.relatedInformation = [
 				{
 					location: {
 						uri: textDocument.uri,
-						range: Object.assign({}, titlediagnostic.range)
+						range: Object.assign({}, titleDiagnostic.range)
 					},
 					message: 'Title Too Long'
 				},
 				{
 					location: {
 						uri: textDocument.uri,
-						range: Object.assign({}, titlediagnostic.range)
+						range: Object.assign({}, titleDiagnostic.range)
 					},
 					message: 'Particularly for firstline'
 				}
@@ -231,7 +230,7 @@ async function validateTextDocument(textDocument: TextDocument): Promise<void> {
 		}
 
 		diagnostics.push(diagnostic);
-		diagnostics.push(titlediagnostic);
+		diagnostics.push(titleDiagnostic);
 	}
 
 	// Send the computed diagnostics to VSCode.
