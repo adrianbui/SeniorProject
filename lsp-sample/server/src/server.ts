@@ -170,9 +170,9 @@ async function validateTextDocument(textDocument: TextDocument): Promise<void> {
 	}
 	
 	const pattern = /\b[A-Z]{2,}\b/g;
-	const pattern2 = /^title:.{8,}/g;
+	const pattern2 = /^title:.{71,}/g;
 	
-	while ((m = pattern.exec(text)) && (m2 = pattern2.exec(text)) && problems < settings.maxNumberOfProblems) {
+	while ((m = pattern.exec(text)) && problems < settings.maxNumberOfProblems) {
 		problems++;
 		const diagnostic: Diagnostic = {
 			severity: DiagnosticSeverity.Warning,
@@ -181,19 +181,10 @@ async function validateTextDocument(textDocument: TextDocument): Promise<void> {
 				end: textDocument.positionAt(m.index + m[0].length)
 			},
 			message: `${m[0]} is all uppercase.`,
-			source: 'ex'
+			source: 'umn-sigma-lsp'
 		};
 
-		const titleDiagnostic: Diagnostic = {
-			severity: DiagnosticSeverity.Warning,
-			range: {
-				start: textDocument.positionAt(m2.index),
-				end: textDocument.positionAt(m2.index + m2[0].length)
-			},
-			message: `${m2[0]} is too long`,
-			source: 'ex'
-		};
-
+	
 		if (hasDiagnosticRelatedInformationCapability) {
 			diagnostic.relatedInformation = [
 				{
@@ -211,27 +202,45 @@ async function validateTextDocument(textDocument: TextDocument): Promise<void> {
 					message: 'Particularly for names'
 				}
 			];
-				titleDiagnostic.relatedInformation = [
-				{
-					location: {
-						uri: textDocument.uri,
-						range: Object.assign({}, titleDiagnostic.range)
-					},
-					message: 'Title Too Long'
+		}
+		diagnostics.push(diagnostic);
+	}
+
+	while ((m2 = pattern2.exec(text)) && problems < settings.maxNumberOfProblems) {
+		problems++;
+
+		const titleDiagnostic: Diagnostic = {
+			severity: DiagnosticSeverity.Warning,
+			range: {
+				start: textDocument.positionAt(m2.index),
+				end: textDocument.positionAt(m2.index + m2[0].length)
+			},
+			message: `${m2[0]} is too long`,
+			source: 'umn-sigma-lsp'
+		};
+
+		if (hasDiagnosticRelatedInformationCapability) {
+			titleDiagnostic.relatedInformation = [
+			{
+				location: {
+					uri: textDocument.uri,
+					range: Object.assign({}, titleDiagnostic.range)
 				},
-				{
-					location: {
-						uri: textDocument.uri,
-						range: Object.assign({}, titleDiagnostic.range)
-					},
-					message: 'Particularly for firstline'
-				}
+				message: 'Title Too Long'
+			},
+			{
+				location: {
+					uri: textDocument.uri,
+					range: Object.assign({}, titleDiagnostic.range)
+				},
+				message: 'No more than 71 characters after title:'
+			}
 			];
 		}
-
-		diagnostics.push(diagnostic);
 		diagnostics.push(titleDiagnostic);
 	}
+
+
 
 	// Send the computed diagnostics to VSCode.
 	connection.sendDiagnostics({ uri: textDocument.uri, diagnostics });
