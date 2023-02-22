@@ -24,7 +24,7 @@ import { error } from 'console';
 
 function creatDiaTrailingWhitespace(
     doc: TextDocument,
-	lineString: String,
+	lineString: string,
     lineIndex: number,
 	matchLen: number
 ): Diagnostic {
@@ -35,12 +35,12 @@ function creatDiaTrailingWhitespace(
 		source: 'umn-sigma-lsp',
 		code: "sigma_trailingWhitespace"
 	};
-	return diagnostic
+	return diagnostic;
 }
 
 function creatDiaTitleTooLong(
     doc: TextDocument,
-	lineString: String,
+	lineString: string,
     lineIndex: number,
 ):  Diagnostic {
     // create range that represents, where in the document the word is
@@ -51,7 +51,7 @@ function creatDiaTitleTooLong(
 		source: 'umn-sigma-lsp',
 		code: "sigma_TitleTooLong"
 	};
-    return diagnostic
+    return diagnostic;
 }
 
 export function handleDiagnostics(doc: TextDocument) {
@@ -64,12 +64,12 @@ export function handleDiagnostics(doc: TextDocument) {
 		if (line.match(/^title:.{71,}/)) {
 			diagnostics.push(creatDiaTitleTooLong(doc, line, i));
 		}
-		let whitespaceMatch = line.match(/[\s]+$/);
+		const whitespaceMatch = line.match(/[\s]+$/);
 		if (whitespaceMatch) {
-			diagnostics.push(creatDiaTrailingWhitespace(doc, line, i, whitespaceMatch[0].length))
+			diagnostics.push(creatDiaTrailingWhitespace(doc, line, i, whitespaceMatch[0].length));
 		}
 	}
-	return diagnostics
+	return diagnostics;
 }
 
-module.exports = {handleDiagnostics}
+module.exports = {handleDiagnostics};

@@ -20,7 +20,7 @@ import {
 
 import * as YAML from "yaml";
 
-import {handleDiagnostics} from './diagnostics'
+import {handleDiagnostics} from './diagnostics';
 
 import {
 	TextDocument
@@ -134,7 +134,7 @@ function getDocumentSettings(resource: string): Thenable<ExampleSettings> {
 // Only keep settings for open documents
 documents.onDidClose(e => {
 	documentSettings.delete(e.document.uri);
-	connection.sendDiagnostics({ uri: e.document.uri, diagnostics: [] })
+	connection.sendDiagnostics({ uri: e.document.uri, diagnostics: [] });
 });
 
 // The content of a text document has changed. This event is emitted
@@ -151,19 +151,19 @@ async function validateTextDocument(textDocument: TextDocument): Promise<void> {
 	const text = textDocument.getText();
 	const diagnostics: Diagnostic[] = [];
 	
-	const newDiagnostics = handleDiagnostics(textDocument)
-	diagnostics.push(...newDiagnostics)
+	const newDiagnostics = handleDiagnostics(textDocument);
+	diagnostics.push(...newDiagnostics);
 
-	let parsedYamlDoc = YAML.parseDocument(text);
-	let contents = parsedYamlDoc.contents
+	const parsedYamlDoc = YAML.parseDocument(text);
+	const contents = parsedYamlDoc.contents;
 	//console.log('contents of parsed YAML: ', contents)
 	// for (let i=0; i<contents.length; i++){
 	// 	console.log()
 	// })
-	let errorsArr = parsedYamlDoc.errors;
+	const errorsArr = parsedYamlDoc.errors;
 	
 	for (let i=0; i<errorsArr.length; i++){
-		let err = errorsArr[i]
+		const err = errorsArr[i];
 		// console.log(`error ${i}`)
 		// console.log(err)
 
@@ -176,8 +176,8 @@ async function validateTextDocument(textDocument: TextDocument): Promise<void> {
 				},
 				message: err.message,
 				source: 'umn-sigma-lsp'
-			}
-			diagnostics.push(newDiagnostic)
+			};
+			diagnostics.push(newDiagnostic);
 		}
 	}
 
