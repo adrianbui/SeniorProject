@@ -23,6 +23,8 @@ import { error } from 'console';
 
 // Code adapted from https://github.com/humpalum/vscode-sigma/blob/main/src/diagnostics.ts
 
+
+// This function goes line by line and computes diagnostics on the file
 export function handleDiagnostics(doc: TextDocument) {
     const lines = doc.getText().split('\n');
 	const diagnostics: Diagnostic[] = [];

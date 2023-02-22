@@ -155,18 +155,15 @@ async function validateTextDocument(textDocument: TextDocument): Promise<void> {
 	diagnostics.push(...newDiagnostics);
 
 	const parsedYamlDoc = YAML.parseDocument(text);
-	const contents = parsedYamlDoc.contents;
-	//console.log('contents of parsed YAML: ', contents)
-	// for (let i=0; i<contents.length; i++){
-	// 	console.log()
-	// })
+
+	// console.log('Yaml.parse: ', YAML.parse(text));
+	// This could be a good alternative to parsing each line of text
+	const parsedToJS = parsedYamlDoc.toJS();
+	console.log('parsed to Js: ', parsedToJS);
+
 	const errorsArr = parsedYamlDoc.errors;
-	
 	for (let i=0; i<errorsArr.length; i++){
 		const err = errorsArr[i];
-		// console.log(`error ${i}`)
-		// console.log(err)
-
 		if (err instanceof Error) {
 			const newDiagnostic: Diagnostic = {
 				severity: DiagnosticSeverity.Error,
@@ -255,7 +252,7 @@ connection.onCompletion(
 		// The pass parameter contains the position of the text document in
 		// which code complete got requested. For the example we ignore this
 		// info and always provide the same completion items.
-	console.log("onCompletion called");
+	//console.log("onCompletion called");
 
 		return [
 			{

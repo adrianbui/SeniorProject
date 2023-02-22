@@ -49,7 +49,7 @@ export function activate(context: ExtensionContext) {
         workspace.onDidOpenTextDocument(doc => {
 			console.log('onDidOpenTextDocument called');
 			console.log(doc);
-            if (doc.languageId == 'yaml' && doc.lineAt(0).text.match(/^title: .*$/)) {
+            if (doc.languageId == 'yaml' && doc.lineAt(0).text.match(/^title: .*$/)|| doc.lineAt(0).text.match(/^\s*#sigma\s*$/)) {
                 languages.setTextDocumentLanguage(doc, "sigma");
             }
         }),
