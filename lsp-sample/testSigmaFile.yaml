@@ -9,8 +9,8 @@ references:
 tags:
     - 
 logsource:
-    category: process_creation
-	product: windows
+    category: contains| process_creation
+	product: windows |all:test
 detection:
 	selection:
 		
