@@ -14,15 +14,19 @@ import {
 	CompletionItemKind,
 	TextDocumentPositionParams,
 	TextDocumentSyncKind,
-	InitializeResult
+	InitializeResult,
+	Range
 } from 'vscode-languageserver/node';
 
 import * as YAML from "yaml";
+
+import {handleDiagnostics} from './diagnostics'
 
 import {
 	TextDocument
 } from 'vscode-languageserver-textdocument';
 import { error } from 'console';
+
 
 // Create a connection for the server, using Node's IPC as a transport.
 // Also include all preview / proposed LSP features.
@@ -30,6 +34,7 @@ const connection = createConnection(ProposedFeatures.all);
 
 // Create a simple text document manager.
 const documents: TextDocuments<TextDocument> = new TextDocuments(TextDocument);
+
 
 let hasConfigurationCapability = false;
 let hasWorkspaceFolderCapability = false;
@@ -141,37 +146,66 @@ documents.onDidChangeContent(change => {
 async function validateTextDocument(textDocument: TextDocument): Promise<void> {
 	// In this simple example we get the settings for every validate run.
 	const settings = await getDocumentSettings(textDocument.uri);
-	console.log('current textDocument: ', textDocument);
+	//console.log('current textDocument: ', textDocument);
 	// The validator creates diagnostics for all uppercase words length 2 and more
 	const text = textDocument.getText();
 	const diagnostics: Diagnostic[] = [];
-	let m: RegExpExecArray | null;
-	let m2: RegExpExecArray | null;
-	let problems = 0;
+	
+	const newDiagnostics = handleDiagnostics(textDocument)
+	diagnostics.push(...newDiagnostics)
 
-	// let parsedYamlDoc = YAML.parseDocument(text);
-	// console.log('parseYamlDoc errors: ', parsedYamlDoc.errors)
-	try {
-		const parsedYAML = YAML.parse(text);
-	} catch (error) {
-		console.log(error);
-		if (error instanceof Error) {
+	let parsedYamlDoc = YAML.parseDocument(text);
+	let contents = parsedYamlDoc.contents
+	//console.log('contents of parsed YAML: ', contents)
+	// for (let i=0; i<contents.length; i++){
+	// 	console.log()
+	// })
+	let errorsArr = parsedYamlDoc.errors;
+	
+	for (let i=0; i<errorsArr.length; i++){
+		let err = errorsArr[i]
+		// console.log(`error ${i}`)
+		// console.log(err)
+
+		if (err instanceof Error) {
 			const newDiagnostic: Diagnostic = {
 				severity: DiagnosticSeverity.Error,
 				range: {
-					start: textDocument.positionAt((error as any).pos[0]),
-					end: textDocument.positionAt((error as any).pos[1])
+					start: textDocument.positionAt((err as any).pos[0]),
+					end: textDocument.positionAt((err as any).pos[1])
 				},
-				message: error.message,
+				message: err.message,
 				source: 'umn-sigma-lsp'
 			}
 			diagnostics.push(newDiagnostic)
 		}
 	}
+
+	// credit to https://github.com/humpalum/vscode-sigma/blob/411c66debbdbe5a90b8e815d310f0f82530df12a/src/diagnostics.ts
+	// try {
+	// 	const parsedYAML = YAML.parse(text);
+	// } catch (error) {
+	// 	console.log(error);
+	// 	if (error instanceof Error) {
+	// 		const newDiagnostic: Diagnostic = {
+	// 			severity: DiagnosticSeverity.Error,
+	// 			range: {
+	// 				start: textDocument.positionAt((error as any).pos[0]),
+	// 				end: textDocument.positionAt((error as any).pos[1])
+	// 			},
+	// 			message: error.message,
+	// 			source: 'umn-sigma-lsp'
+	// 		}
+	// 		diagnostics.push(newDiagnostic)
+	// 	}
+	// }
 	
 	const pattern = /\b[A-Z]{2,}\b/g;
 	const pattern2 = /^title:.{71,}/g;
-	
+	let m: RegExpExecArray | null;
+	let m2: RegExpExecArray | null;
+	let problems = 0;
+
 	while ((m = pattern.exec(text)) && problems < settings.maxNumberOfProblems) {
 		problems++;
 		const diagnostic: Diagnostic = {
@@ -205,42 +239,6 @@ async function validateTextDocument(textDocument: TextDocument): Promise<void> {
 		}
 		diagnostics.push(diagnostic);
 	}
-
-	while ((m2 = pattern2.exec(text)) && problems < settings.maxNumberOfProblems) {
-		problems++;
-
-		const titleDiagnostic: Diagnostic = {
-			severity: DiagnosticSeverity.Warning,
-			range: {
-				start: textDocument.positionAt(m2.index),
-				end: textDocument.positionAt(m2.index + m2[0].length)
-			},
-			message: `${m2[0]} is too long`,
-			source: 'umn-sigma-lsp'
-		};
-
-		if (hasDiagnosticRelatedInformationCapability) {
-			titleDiagnostic.relatedInformation = [
-			{
-				location: {
-					uri: textDocument.uri,
-					range: Object.assign({}, titleDiagnostic.range)
-				},
-				message: 'Title Too Long'
-			},
-			{
-				location: {
-					uri: textDocument.uri,
-					range: Object.assign({}, titleDiagnostic.range)
-				},
-				message: 'No more than 71 characters after title:'
-			}
-			];
-		}
-		diagnostics.push(titleDiagnostic);
-	}
-
-
 
 	// Send the computed diagnostics to VSCode.
 	connection.sendDiagnostics({ uri: textDocument.uri, diagnostics });

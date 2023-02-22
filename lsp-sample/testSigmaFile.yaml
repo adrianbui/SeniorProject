@@ -1,4 +1,4 @@
-title: testSigmaFiletestSigmaFiletestSigmaFiletestSigmaFiletestSigmaFiletestSigmaFiletestSigmaFiletest
+title: testSigmaFile
 id: db64f204-b40c-4492-8e3d-76915ff40792
 status: experimental
 description: Detects 
@@ -9,7 +9,7 @@ references:
 tags:
     - 
 logsource:
-	category: process_creation
+    category: process_creation
 	product: windows
 detection:
 	selection:
