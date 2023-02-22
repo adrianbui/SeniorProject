@@ -21,6 +21,23 @@
 	],
 	"main": "./client/out/extension",
 	"contributes": {
+		"languages": [
+			{
+			"id": "sigma",
+			"aliases": [
+				"sigma",
+				"sigma-syntax",
+				"sigmalang",
+				"SIGMA",
+				"Sigma"
+			],
+			"icon": {
+				"light": "./images/Sigma_Icon_trans.png",
+				"dark": "./images/Sigma_Icon_trans.png"
+			},
+			"configuration": "./language-configuration.json",
+			"firstLine": "/^title: .*$/"
+			}],
 		"configuration": {
 			"type": "object",
 			"title": "Example configuration",
@@ -61,5 +78,8 @@
 		"eslint": "^8.26.0",
 		"mocha": "^9.2.1",
 		"typescript": "^4.9.4"
+	},
+	"dependencies": {
+		"yaml": "^2.2.1"
 	}
 }

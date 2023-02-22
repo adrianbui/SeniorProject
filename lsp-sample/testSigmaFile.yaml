@@ -1,0 +1,24 @@
+title: testSigmaFile
+id: db64f204-b40c-4492-8e3d-76915ff40792
+status: experimental
+description: Detects 
+author: 
+date: 2023/02/19
+references:
+    - 
+tags:
+    - 
+logsource:
+    category: contains| process_creation
+	product: windows |all:test
+detection:
+	selection:
+		
+	condition: selection
+falsepositives:
+	 - Unknown
+level: critical
+
+
+
+
