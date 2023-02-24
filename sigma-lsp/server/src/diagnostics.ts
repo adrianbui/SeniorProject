@@ -10,11 +10,24 @@ import {
 	TextDocument
 } from 'vscode-languageserver-textdocument';
 import { error } from 'console';
+import { getTags } from 'yaml/dist/schema/tags';
 
 // Code adapted from https://github.com/humpalum/vscode-sigma/blob/main/src/diagnostics.ts
 
 
 // This function goes line by line and computes diagnostics on the file
+ export function handleDiagnosticsParsedYaml (parsedToJS:Object){
+	const diagnostics: Diagnostic[] = [];
+
+	if("tags" in parsedToJS) {
+		if(Array.isArray(parsedToJS.tags)) {
+			for (let i = 0; i < parsedToJS.tags.length; i++){
+				if(parsedToJS.tags[i].match(/[A-Z]/) != null){
+					diagnostics.push(creatDiaLowercase(parsedToJS, parsedToJS.tags[i], i))
+				}
+			}
+	}
+ }
 export function handleDiagnostics(doc: TextDocument) {
     const lines = doc.getText().split('\n');
 	const diagnostics: Diagnostic[] = [];
@@ -48,7 +61,31 @@ export function handleDiagnostics(doc: TextDocument) {
 	return diagnostics;
 }
 
+
+
 // Helper Functions to Create Diagnostics
+
+function creatDiaLowercase(
+    parsedToJS: Object,
+	lineString: string, 
+    lineIndex: number,
+): Diagnostic {
+    // find where in the parsed yaml there is uppercase 
+	if("tags" in parsedToJS) {
+		//for (let i = 0; i < parsedToJS.tags.length; i++){
+		//if(parsedToJS.tags[i].match(/[A-Z]/) != null){
+    const index = lineString.indexOf("|all");
+    const indexLength = "|all".length;
+
+	const diagnostic: Diagnostic = {
+		severity: DiagnosticSeverity.Warning,
+		range: Range.create(lineIndex, index, lineIndex, index + indexLength),
+		message: 'Modifier: "|all" may not be a single entry',
+		source: 'umn-sigma-lsp',
+		code: "sigma_AllSingle"
+	};
+	return diagnostic;
+}}
 
 function creatDiaSingleAll(
     doc: TextDocument,
@@ -95,7 +132,6 @@ function creatDiaContainsInMiddle(
 	};
 	return diagnostic;
 }
-
 
 function creatDiaTrailingWhitespace(
     doc: TextDocument,
@@ -146,3 +182,12 @@ function creatDiaDescTooShort(
 }
 
 module.exports = {handleDiagnostics};
+
+function getRangeOfString(str: string, doc: TextDocument){
+	const lines = doc.getText().split('\n');
+	for (let i = 0; i < doc.lineCount; i++) {
+		if()
+
+	
+	}
+}
