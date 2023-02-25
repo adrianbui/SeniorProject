@@ -35,7 +35,9 @@ export function handleDiagnostics(doc: TextDocument, parsedToJS: Record<string, 
 				diagnostics.push(createDiaSingleAll(doc, line, i));
 			}
 		}
-		if (line.match(/^title:.{71,}/)) {
+		// "Use a short title with less than 50 characters as an alert name"
+		// Sigma Docs: https://github.com/SigmaHQ/sigma/wiki/Rule-Creation-Guide
+		if (line.match(/^title:.{45,}/)) {
 			diagnostics.push(createDiaTitleTooLong(doc, line, i));
 		}
 		const whitespaceMatch = line.match(/[\s]+$/);
