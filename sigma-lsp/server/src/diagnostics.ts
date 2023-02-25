@@ -15,46 +15,36 @@ import { getTags } from 'yaml/dist/schema/tags';
 // Code adapted from https://github.com/humpalum/vscode-sigma/blob/main/src/diagnostics.ts
 
 
-// This function goes line by line and computes diagnostics on the file
- export function handleDiagnosticsParsedYaml (parsedToJS:Object){
-	const diagnostics: Diagnostic[] = [];
-
-	if("tags" in parsedToJS) {
-		if(Array.isArray(parsedToJS.tags)) {
-			for (let i = 0; i < parsedToJS.tags.length; i++){
-				if(parsedToJS.tags[i].match(/[A-Z]/) != null){
-					diagnostics.push(creatDiaLowercase(parsedToJS, parsedToJS.tags[i], i))
-				}
-			}
-	}
- }
-export function handleDiagnostics(doc: TextDocument) {
+export function handleDiagnostics(doc: TextDocument, parsedToJS: Record<string, unknown>) {
     const lines = doc.getText().split('\n');
 	const diagnostics: Diagnostic[] = [];
 
+	const tempArr = checkLowercaseTags(doc, parsedToJS);
+	diagnostics.push(...tempArr);
+
     for (let i = 0; i < doc.lineCount; i++) {
         const line = lines[i];
-        console.log(doc.getText(Range.create(i,0,i,line.length)));
+        //console.log(doc.getText(Range.create(i,0,i,line.length)));
 		if (line.includes("contains|")) {
 			if (!line.includes("contains|all:")) {
-				diagnostics.push(creatDiaContainsInMiddle(doc, line, i));
+				diagnostics.push(createDiaContainsInMiddle(doc, line, i));
 			}
 		}
 		if (line.includes("|all:")) {
 			if (!line.match(/\|all:\s*$/)) {
-				diagnostics.push(creatDiaSingleAll(doc, line, i));
+				diagnostics.push(createDiaSingleAll(doc, line, i));
 			}
 		}
 		if (line.match(/^title:.{71,}/)) {
-			diagnostics.push(creatDiaTitleTooLong(doc, line, i));
+			diagnostics.push(createDiaTitleTooLong(doc, line, i));
 		}
 		const whitespaceMatch = line.match(/[\s]+$/);
 		if (whitespaceMatch) {
-			diagnostics.push(creatDiaTrailingWhitespace(doc, line, i, whitespaceMatch[0].length));
+			diagnostics.push(createDiaTrailingWhitespace(doc, line, i, whitespaceMatch[0].length));
 		}
 		if (line.match(/^description:.{0,32}$/)) {
 			if (!line.match(/^description:\s+\|\s*$/)) {
-				diagnostics.push(creatDiaDescTooShort(doc, line, i));
+				diagnostics.push(createDiaDescTooShort(doc, line, i));
 			}
 		}
 	}
@@ -65,29 +55,27 @@ export function handleDiagnostics(doc: TextDocument) {
 
 // Helper Functions to Create Diagnostics
 
-function creatDiaLowercase(
-    parsedToJS: Object,
+function createDiaLowercaseTag(
+    doc: TextDocument,
 	lineString: string, 
     lineIndex: number,
+	targetString: string
 ): Diagnostic {
     // find where in the parsed yaml there is uppercase 
-	if("tags" in parsedToJS) {
-		//for (let i = 0; i < parsedToJS.tags.length; i++){
-		//if(parsedToJS.tags[i].match(/[A-Z]/) != null){
-    const index = lineString.indexOf("|all");
-    const indexLength = "|all".length;
+    const index = lineString.indexOf(targetString);
+    const indexLength = targetString.length;
 
 	const diagnostic: Diagnostic = {
 		severity: DiagnosticSeverity.Warning,
 		range: Range.create(lineIndex, index, lineIndex, index + indexLength),
-		message: 'Modifier: "|all" may not be a single entry',
+		message: 'Tags should only have lowercase words',
 		source: 'umn-sigma-lsp',
-		code: "sigma_AllSingle"
+		code: "sigma_LowercaseTag"
 	};
 	return diagnostic;
-}}
+}
 
-function creatDiaSingleAll(
+function createDiaSingleAll(
     doc: TextDocument,
 	lineString: string,
     lineIndex: number,
@@ -106,7 +94,7 @@ function creatDiaSingleAll(
 	return diagnostic;
 }
 
-function creatDiaContainsInMiddle(
+function createDiaContainsInMiddle(
     doc: TextDocument,
 	lineString: string,
     lineIndex: number,
@@ -133,7 +121,7 @@ function creatDiaContainsInMiddle(
 	return diagnostic;
 }
 
-function creatDiaTrailingWhitespace(
+function createDiaTrailingWhitespace(
     doc: TextDocument,
 	lineString: string,
     lineIndex: number,
@@ -149,7 +137,7 @@ function creatDiaTrailingWhitespace(
 	return diagnostic;
 }
 
-function creatDiaTitleTooLong(
+function createDiaTitleTooLong(
     doc: TextDocument,
 	lineString: string,
     lineIndex: number,
@@ -165,7 +153,7 @@ function creatDiaTitleTooLong(
     return diagnostic;
 }
 
-function creatDiaDescTooShort(
+function createDiaDescTooShort(
     doc: TextDocument,
 	lineString: string,
     lineIndex: number,
@@ -183,11 +171,50 @@ function creatDiaDescTooShort(
 
 module.exports = {handleDiagnostics};
 
-function getRangeOfString(str: string, doc: TextDocument){
+function checkLowercaseTags(doc: TextDocument, parsedToJS: Record<string, unknown>){
 	const lines = doc.getText().split('\n');
-	for (let i = 0; i < doc.lineCount; i++) {
-		if()
-
-	
+	const tempDiagnostics: Diagnostic[] = [];
+	if("tags" in parsedToJS) {
+		const tagsArr = parsedToJS.tags;
+		if(Array.isArray(tagsArr)) {
+			const tagsLength = tagsArr.length;
+			for (let i = 0; i < doc.lineCount; i++) {
+				if (lines[i].match(/^tags:/)) {
+					// for (let j=0; j<tagsArr.length; j++){
+					// 	const lineIndex = i + j + 1;
+					// 	const lineString = tagsArr[j];
+					// 	console.log(lineString);
+					// 	const uppercaseWords = lineString.match(/\b[A-Z]\w*\b/g);
+					// 	console.log(uppercaseWords);
+					// 	if (uppercaseWords) {
+					// 		for (let k=0; k < uppercaseWords.length; k++){
+					// 			const badWord = uppercaseWords[k];
+					// 			lineString.indexOf(badWord);
+					// 			tempDiagnostics.push(createDiaLowercaseTag(doc,lineString,lineIndex,badWord));
+					// 		}
+					// 	}
+					// }
+					for (let j=i+1; j < i + tagsLength; j++) {
+						let lineString = lines[j];
+						const commentStart = lineString.indexOf("#");
+						if (commentStart !== -1) {
+							lineString = lineString.substring(0,commentStart);
+						}
+						console.log(lineString);
+						const uppercaseWords = lineString.match(/\b[A-Z]\w*\b/g);
+						console.log(uppercaseWords);
+						if (uppercaseWords) {
+							for (let k=0; k<uppercaseWords.length; k++){
+								const badWord = uppercaseWords[k];
+								// TODO if the same uppercase word is present twice it only gets marked on the first one
+								tempDiagnostics.push(createDiaLowercaseTag(doc,lineString,j,badWord));
+							}
+						}
+					}
+					return tempDiagnostics;
+				}
+			}	
+		}
 	}
+	return tempDiagnostics;
 }
