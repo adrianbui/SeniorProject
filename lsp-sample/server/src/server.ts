@@ -26,6 +26,7 @@ import {
 	TextDocument
 } from 'vscode-languageserver-textdocument';
 import { error } from 'console';
+import { connect } from 'http2';
 
 
 // Create a connection for the server, using Node's IPC as a transport.
@@ -253,15 +254,14 @@ connection.onCompletion(
 		// which code complete got requested. For the example we ignore this
 		// info and always provide the same completion items.
 	//console.log("onCompletion called");
-
 		return [
 			{
-				label: 'TypeScript',
+				label: 'title',
 				kind: CompletionItemKind.Text,
 				data: 1
 			},
 			{
-				label: 'JavaScript',
+				label: 'description',
 				kind: CompletionItemKind.Text,
 				data: 2
 			}
@@ -274,11 +274,11 @@ connection.onCompletion(
 connection.onCompletionResolve(
 	(item: CompletionItem): CompletionItem => {
 		if (item.data === 1) {
-			item.detail = 'TypeScript details';
-			item.documentation = 'TypeScript documentation';
+			item.detail = 'Sigma Attribute [required]';
+			item.documentation = 'A brief title for the rule that should contain what the rules is supposed to detect (max. 256 characters)';
 		} else if (item.data === 2) {
-			item.detail = 'JavaScript details';
-			item.documentation = 'JavaScript documentation';
+			item.detail = 'Sigma Attribute [optional]';
+			item.documentation = 'A short description of the rule and the malicious activity that can be detected (max. 65,535 characters)';
 		}
 		return item;
 	}
