@@ -19,8 +19,15 @@ export function handleDiagnostics(doc: TextDocument, parsedToJS: Record<string, 
     const lines = doc.getText().split('\n');
 	const diagnostics: Diagnostic[] = [];
 
-	const tempArr = checkLowercaseTags(doc, parsedToJS);
-	diagnostics.push(...tempArr);
+	if("author" in parsedToJS) {
+		const tempArr = checkAuthor(doc, lines, parsedToJS);
+		diagnostics.push(...tempArr);
+	}
+
+	if("tags" in parsedToJS) {
+		const tempArr = checkLowercaseTags(doc, lines, parsedToJS);
+		diagnostics.push(...tempArr);
+	}
 
     for (let i = 0; i < doc.lineCount; i++) {
         const line = lines[i];
@@ -37,7 +44,7 @@ export function handleDiagnostics(doc: TextDocument, parsedToJS: Record<string, 
 		}
 		// "Use a short title with less than 50 characters as an alert name"
 		// Sigma Docs: https://github.com/SigmaHQ/sigma/wiki/Rule-Creation-Guide
-		if (line.match(/^title:.{45,}/)) {
+		if (line.match(/^title:.{50,}/)) {
 			diagnostics.push(createDiaTitleTooLong(doc, line, i));
 		}
 		const whitespaceMatch = line.match(/[\s]+$/);
@@ -57,6 +64,37 @@ export function handleDiagnostics(doc: TextDocument, parsedToJS: Record<string, 
 
 // Helper Functions to Create Diagnostics
 
+function createDiaAuthorNotString(
+    doc: TextDocument,
+	lineString: string, 
+    lineIndex: number,
+): Diagnostic { 
+	// TODO range should include the next line(s) if the author value is a list
+	const diagnostic: Diagnostic = {
+		severity: DiagnosticSeverity.Error,
+		range: Range.create(lineIndex, 0, lineIndex, lineString.length),
+		message: 'Author value must be a string',
+		source: 'umn-sigma-lsp',
+		code: "sigma_AuthorNotString"
+	};
+	return diagnostic;
+}
+
+function createDiaTagNotSequence(
+    doc: TextDocument,
+	lineString: string, 
+    lineIndex: number,
+): Diagnostic {
+	const diagnostic: Diagnostic = {
+		severity: DiagnosticSeverity.Error,
+		range: Range.create(lineIndex, 0, lineIndex, lineString.length),
+		message: 'Tags value must be a yaml Sequence',
+		source: 'umn-sigma-lsp',
+		code: "sigma_TagNotSequence"
+	};
+	return diagnostic;
+}
+
 function createDiaLowercaseTag(
     doc: TextDocument,
 	lineString: string, 
@@ -70,7 +108,7 @@ function createDiaLowercaseTag(
 	const diagnostic: Diagnostic = {
 		severity: DiagnosticSeverity.Warning,
 		range: Range.create(lineIndex, index, lineIndex, index + indexLength),
-		message: 'Tags should only have lowercase words',
+		message: 'Tags should be lowercase only',
 		source: 'umn-sigma-lsp',
 		code: "sigma_LowercaseTag"
 	};
@@ -173,49 +211,59 @@ function createDiaDescTooShort(
 
 module.exports = {handleDiagnostics};
 
-function checkLowercaseTags(doc: TextDocument, parsedToJS: Record<string, unknown>){
-	const lines = doc.getText().split('\n');
+function checkLowercaseTags(doc: TextDocument, docLines: Array<string>, parsedToJS: Record<string, unknown>){
 	const tempDiagnostics: Diagnostic[] = [];
-	if("tags" in parsedToJS) {
-		const tagsArr = parsedToJS.tags;
-		if(Array.isArray(tagsArr)) {
-			const tagsLength = tagsArr.length;
-			for (let i = 0; i < doc.lineCount; i++) {
-				if (lines[i].match(/^tags:/)) {
-					// for (let j=0; j<tagsArr.length; j++){
-					// 	const lineIndex = i + j + 1;
-					// 	const lineString = tagsArr[j];
-					// 	console.log(lineString);
-					// 	const uppercaseWords = lineString.match(/\b[A-Z]\w*\b/g);
-					// 	console.log(uppercaseWords);
-					// 	if (uppercaseWords) {
-					// 		for (let k=0; k < uppercaseWords.length; k++){
-					// 			const badWord = uppercaseWords[k];
-					// 			lineString.indexOf(badWord);
-					// 			tempDiagnostics.push(createDiaLowercaseTag(doc,lineString,lineIndex,badWord));
-					// 		}
-					// 	}
-					// }
-					for (let j=i+1; j < i + tagsLength; j++) {
-						let lineString = lines[j];
-						const commentStart = lineString.indexOf("#");
-						if (commentStart !== -1) {
-							lineString = lineString.substring(0,commentStart);
-						}
-						console.log(lineString);
-						const uppercaseWords = lineString.match(/\b[A-Z]\w*\b/g);
-						console.log(uppercaseWords);
-						if (uppercaseWords) {
-							for (let k=0; k<uppercaseWords.length; k++){
-								const badWord = uppercaseWords[k];
-								// TODO if the same uppercase word is present twice it only gets marked on the first one
-								tempDiagnostics.push(createDiaLowercaseTag(doc,lineString,j,badWord));
-							}
+	const tagsArr = parsedToJS.tags;
+	if(Array.isArray(tagsArr)) {
+		const tagsLength = tagsArr.length;
+		for (let i = 0; i < doc.lineCount; i++) {
+			if (docLines[i].match(/^tags:/)) {
+				for (let j=i+1; j < i + tagsLength; j++) {
+					let lineString = docLines[j];
+					const commentStart = lineString.indexOf("#");
+					if (commentStart !== -1) {
+						lineString = lineString.substring(0,commentStart);
+					}
+					console.log(lineString);
+					const uppercaseWords = lineString.match(/\b[A-Z]\S*\b/g);
+					console.log(uppercaseWords);
+					if (uppercaseWords) {
+						for (let k=0; k<uppercaseWords.length; k++){
+							const badWord = uppercaseWords[k];
+							// TODO if the same uppercase word is present twice it only gets marked on the first one
+							tempDiagnostics.push(createDiaLowercaseTag(doc,lineString,j,badWord));
 						}
 					}
-					return tempDiagnostics;
 				}
-			}	
+				return tempDiagnostics;
+			}
+		}	
+	} else {  // tags field is not a YAML sequence
+		for (let i = 0; i < doc.lineCount; i++) {
+			const lineString = docLines[i];
+			if (docLines[i].match(/^tags:/)) {
+				tempDiagnostics.push(createDiaTagNotSequence(doc,lineString,i));
+			}
+		}
+	}
+	return tempDiagnostics;
+}
+
+function checkAuthor(doc: TextDocument, docLines: Array<string>, parsedToJS: Record<string, unknown>){
+	// type of the author field should be a string, not a list, according to https://github.com/SigmaHQ/sigma/wiki/Rule-Creation-Guide
+	const tempDiagnostics: Diagnostic[] = [];
+	const authorValue = parsedToJS.author;
+	console.log('type of authorValue', typeof(authorValue));
+	console.log('is author an instanceof string: ?', authorValue instanceof String);
+	if (typeof authorValue !== 'string' && !(authorValue instanceof String)){
+		// get the line that author is on
+		for (let i = 0; i < doc.lineCount; i++) {
+			const lineString = docLines[i];
+			if (lineString.match(/^author:/)) {
+				tempDiagnostics.push(createDiaAuthorNotString(doc,lineString,i));
+				return tempDiagnostics;
+			}
+			
 		}
 	}
 	return tempDiagnostics;
