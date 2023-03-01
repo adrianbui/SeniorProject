@@ -19,6 +19,9 @@ export function handleDiagnostics(doc: TextDocument, parsedToJS: Record<string, 
     const lines = doc.getText().split('\n');
 	const diagnostics: Diagnostic[] = [];
 
+	const tempArr = checkFields(doc,lines,parsedToJS);
+	diagnostics.push(...tempArr);
+
 	if("author" in parsedToJS) {
 		const tempArr = checkAuthor(doc, lines, parsedToJS);
 		diagnostics.push(...tempArr);
@@ -63,6 +66,23 @@ export function handleDiagnostics(doc: TextDocument, parsedToJS: Record<string, 
 
 
 // Helper Functions to Create Diagnostics
+
+function createDiaMissingReqField(
+	doc: TextDocument,
+	lineString: string, 
+    lineIndex: number,
+): Diagnostic { 
+	// TODO range should include the next line(s) if the author value is a list
+	const diagnostic: Diagnostic = {
+		severity: DiagnosticSeverity.Error,
+		range: Range.create(lineIndex, 0, lineIndex, lineString.length),
+		message: 'Sigma File is missing required tag: ("title", "logsource", "detection", "condition")',
+		source: 'umn-sigma-lsp',
+		code: "sigma_MissingReqField"
+	};
+	return diagnostic;
+}
+
 
 function createDiaAuthorNotString(
     doc: TextDocument,
@@ -209,6 +229,7 @@ function createDiaDescTooShort(
     return diagnostic;
 }
 
+
 module.exports = {handleDiagnostics};
 
 function checkLowercaseTags(doc: TextDocument, docLines: Array<string>, parsedToJS: Record<string, unknown>){
@@ -264,6 +285,19 @@ function checkAuthor(doc: TextDocument, docLines: Array<string>, parsedToJS: Rec
 				return tempDiagnostics;
 			}
 			
+		}
+	}
+	return tempDiagnostics;
+}
+
+function checkFields(doc: TextDocument, docLines: Array<string>, parsedToJS: Record<string, unknown>) {
+	const lastLine = docLines[doc.lineCount];
+	const tempDiagnostics: Diagnostic[] = [];
+	const keys =  Object.keys(parsedToJS);
+	const requiredKeys = ["title", "logsource", "detection", "condition"];
+	for(let i = 0; i < requiredKeys.length; i++){
+		if (keys.includes(requiredKeys[i]) != true) {
+			tempDiagnostics.push(createDiaMissingReqField(doc,lastLine,doc.lineCount));
 		}
 	}
 	return tempDiagnostics;
