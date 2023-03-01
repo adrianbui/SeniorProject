@@ -1,11 +1,11 @@
-title: a short capitalised title with less than 50 characters
+title: a short title with less than 50 characters
 id: generate one here https://www.uuidgenerator.net/version4
 status: experimental
 description: A description of what your rule is meant to detect
 references:
     - A list of all references that can help a reader or analyst understand the meaning of a triggered rule
 tags:
-    - attack.execution  # example MITRE ATT&CK category
+    - attack.execution # example MITRE ATT&CK category
     - attack.t1059      # example MITRE ATT&CK technique id
     - car.2014-04-003   # example CAR id
 author: Michael Haag, Florian Roth, Markus Neis  # example, a list of authors
