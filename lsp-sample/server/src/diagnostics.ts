@@ -83,6 +83,9 @@ function createDiaMissingReqField(
     lineIndex: number,
 ): Diagnostic { 
 	// TODO range should include the next line(s) if the author value is a list
+	if (lineString == undefined){
+		lineString = '';
+	}
 	const diagnostic: Diagnostic = {
 		severity: DiagnosticSeverity.Error,
 		range: Range.create(lineIndex, 0, lineIndex, lineString.length),
@@ -240,8 +243,6 @@ function createDiaDescTooShort(
 }
 
 
-module.exports = {handleDiagnostics};
-
 function checkLowercaseTags(doc: TextDocument, docLines: Array<string>, parsedToJS: Record<string, unknown>){
 	const tempDiagnostics: Diagnostic[] = [];
 	const tagsArr = parsedToJS.tags;
@@ -301,6 +302,7 @@ function checkAuthor(doc: TextDocument, docLines: Array<string>, parsedToJS: Rec
 }
 
 function checkFields(doc: TextDocument, docLines: Array<string>, parsedToJS: Record<string, unknown>) {
+	// TODO condition is a sub-attribute of detection
 	const lastLine = docLines[doc.lineCount];
 	const tempDiagnostics: Diagnostic[] = [];
 	const keys =  Object.keys(parsedToJS);
@@ -312,3 +314,5 @@ function checkFields(doc: TextDocument, docLines: Array<string>, parsedToJS: Rec
 	}
 	return tempDiagnostics;
 }
+
+module.exports = {handleDiagnostics};
