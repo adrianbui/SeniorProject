@@ -38,6 +38,7 @@ export function handleDiagnostics(doc: TextDocument, parsedToJS: Record<string, 
 	}
 
 	if("tags" in parsedToJS) {
+		console.log('tags attribute exists');
 		const tempArr = checkLowercaseTags(doc, lines, parsedToJS);
 		diagnostics.push(...tempArr);
 	}
@@ -250,7 +251,7 @@ function checkLowercaseTags(doc: TextDocument, docLines: Array<string>, parsedTo
 		const tagsLength = tagsArr.length;
 		for (let i = 0; i < doc.lineCount; i++) {
 			if (docLines[i].match(/^tags:/)) {
-				for (let j=i+1; j < i + tagsLength; j++) {
+				for (let j=i+1; j <= i + tagsLength; j++) {
 					let lineString = docLines[j];
 					const commentStart = lineString.indexOf("#");
 					if (commentStart !== -1) {
@@ -285,8 +286,8 @@ function checkAuthor(doc: TextDocument, docLines: Array<string>, parsedToJS: Rec
 	// type of the author field should be a string, not a list, according to https://github.com/SigmaHQ/sigma/wiki/Rule-Creation-Guide
 	const tempDiagnostics: Diagnostic[] = [];
 	const authorValue = parsedToJS.author;
-	console.log('type of authorValue', typeof(authorValue));
-	console.log('is author an instanceof string: ?', authorValue instanceof String);
+	//console.log('type of authorValue', typeof(authorValue));
+	//console.log('is author an instanceof string: ?', authorValue instanceof String);
 	if (typeof authorValue !== 'string' && !(authorValue instanceof String)){
 		// get the line that author is on
 		for (let i = 0; i < doc.lineCount; i++) {
