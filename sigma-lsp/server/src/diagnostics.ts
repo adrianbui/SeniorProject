@@ -19,8 +19,10 @@ export function handleDiagnostics(doc: TextDocument, parsedToJS: Record<string, 
     const lines = doc.getText().split('\n');
 	const diagnostics: Diagnostic[] = [];
 
-	const tempArr = checkFields(doc,lines,parsedToJS);
-	diagnostics.push(...tempArr);
+	
+	diagnostics.push(...checkRequiredFields(doc,lines,parsedToJS));
+	//diagnostics.push(...checkInvalidFields(doc,lines,parsedToJS));
+
 
 	if("author" in parsedToJS) {
 		const tempArr = checkAuthor(doc, lines, parsedToJS);
@@ -72,6 +74,7 @@ function createDiaMissingReqField(
 	doc: TextDocument,
 	lineString: string, 
     lineIndex: number,
+	missingTags: string
 ): Diagnostic { 
 	// TODO range should include the next line(s) if the author value is a list
 	if (lineString == undefined){
@@ -80,7 +83,7 @@ function createDiaMissingReqField(
 	const diagnostic: Diagnostic = {
 		severity: DiagnosticSeverity.Error,
 		range: Range.create(lineIndex, 0, lineIndex, lineString.length),
-		message: 'Sigma File is missing required tag: ("title", "logsource", "detection", "condition")',
+		message: `Sigma File is missing required tag(s): ${missingTags}`,
 		source: 'umn-sigma-lsp',
 		code: "sigma_MissingReqField"
 	};
@@ -88,15 +91,18 @@ function createDiaMissingReqField(
 }
 
 
+// this diagnostic could be on multiple lines
+// lineStringEnd is the string of the last line
 function createDiaAuthorNotString(
     doc: TextDocument,
-	lineString: string, 
-    lineIndex: number,
+	lineStringEnd: string, 
+    lineIndexStart: number,
+	lineIndexEnd: number
 ): Diagnostic { 
 	// TODO range should include the next line(s) if the author value is a list
 	const diagnostic: Diagnostic = {
 		severity: DiagnosticSeverity.Error,
-		range: Range.create(lineIndex, 0, lineIndex, lineString.length),
+		range: Range.create(lineIndexStart, 0, lineIndexEnd, lineStringEnd.length),
 		message: 'Author value must be a string',
 		source: 'umn-sigma-lsp',
 		code: "sigma_AuthorNotString"
@@ -276,14 +282,39 @@ function checkAuthor(doc: TextDocument, docLines: Array<string>, parsedToJS: Rec
 	// type of the author field should be a string, not a list, according to https://github.com/SigmaHQ/sigma/wiki/Rule-Creation-Guide
 	const tempDiagnostics: Diagnostic[] = [];
 	const authorValue = parsedToJS.author;
-	//console.log('type of authorValue', typeof(authorValue));
-	//console.log('is author an instanceof string: ?', authorValue instanceof String);
+
+	// get the next key so that the author diagnostic will be on all lines until the next key
+	const keys = Object.keys(parsedToJS);
+	const nextIndex = keys.indexOf("author")+1;
+	const nextField = keys[nextIndex];
+
+	// need quotation marks around @ symbol if adding twitter handle
+
 	if (typeof authorValue !== 'string' && !(authorValue instanceof String)){
 		// get the line that author is on
 		for (let i = 0; i < doc.lineCount; i++) {
 			const lineString = docLines[i];
 			if (lineString.match(/^author:/)) {
-				tempDiagnostics.push(createDiaAuthorNotString(doc,lineString,i));
+				// if (Array.isArray(authorValue)){
+				// 	const lineIndexEnd = i + authorValue.length;
+				// 	const lastString = docLines[lineIndexEnd] // to get the length of last line to end the diagnostic
+				// 	tempDiagnostics.push(createDiaAuthorNotString(doc,lastString,i,lineIndexEnd));
+				// }
+				const atSymbol = lineString.indexOf("@");
+				if (nextField){ // if author isn't the last field
+					let j=i+1;
+					const currentLine = docLines[j];
+					while (!currentLine.match(`/^${nextField}:/`)){
+						j++;
+					}
+					console.log('last line j was at: ', docLines[j]);
+					const idxBeforeNextField = j-1;
+					const lastString = docLines[idxBeforeNextField];
+					tempDiagnostics.push(createDiaAuthorNotString(doc,lastString,i,idxBeforeNextField));
+				} else { // if author is for some reason the last field
+					tempDiagnostics.push(createDiaAuthorNotString(doc,lineString,i,i));
+				}
+				
 				return tempDiagnostics;
 			}
 			
@@ -292,18 +323,61 @@ function checkAuthor(doc: TextDocument, docLines: Array<string>, parsedToJS: Rec
 	return tempDiagnostics;
 }
 
-function checkFields(doc: TextDocument, docLines: Array<string>, parsedToJS: Record<string, unknown>) {
-	// TODO condition is a sub-attribute of detection
-	const lastLine = docLines[doc.lineCount];
+/**
+ * Checks that all required Sigma fields are present in the yaml file
+ * @param {TextDocument} doc has the contents of the current file
+ * @param {Array<string>} docLines each line of the file as a string
+ * @param {Record<string, unknown>} parsedToJS javascript object with parsed contents of yaml file
+ * @return {tempDiagnostics} array of diagnostics to be displayed
+ */
+function checkRequiredFields(doc: TextDocument, docLines: Array<string>, parsedToJS: Record<string, unknown>) {
+	const firstLine = docLines[0];
 	const tempDiagnostics: Diagnostic[] = [];
 	const keys =  Object.keys(parsedToJS);
-	const requiredKeys = ["title", "logsource", "detection", "condition"];
-	for(let i = 0; i < requiredKeys.length; i++){
-		if (keys.includes(requiredKeys[i]) != true) {
-			tempDiagnostics.push(createDiaMissingReqField(doc,lastLine,doc.lineCount));
+	const requiredFields = ["title", "logsource"];
+	const missingFields = [];
+	for(let i = 0; i < requiredFields.length; i++){
+		if (keys.includes(requiredFields[i]) != true) {
+			missingFields.push(requiredFields[i]);
+			console.log('missing: ', requiredFields[i]);
 		}
+	}
+	// TODO underline detection if condition is not there???
+	if (!keys.includes("detection")) {
+		console.log('detection is missing');
+		console.log('condition is missing');
+		missingFields.push("detection");
+		missingFields.push("condition");
+	} else {
+		if (!Array.isArray(parsedToJS.detection) || !("condition" in parsedToJS.detection)){
+			console.log('condition is missing');
+			missingFields.push("condition");
+		}
+	}
+	if (missingFields.length > 0){
+		tempDiagnostics.push(createDiaMissingReqField(doc,firstLine,0,missingFields.toString()));
 	}
 	return tempDiagnostics;
 }
+
+/**
+ * Checks that all fields are valid sigma keys
+ * @param {TextDocument} doc has the contents of the current file
+ * @param {Array<string>} docLines each line of the file as a string
+ * @param {Record<string, unknown>} parsedToJS javascript object with parsed contents of yaml file
+ * @return {tempDiagnostics} array of diagnostics to be displayed
+ */
+
+// TODO Ask Caleb what is an invalid field if there are arbitrary custom fields???
+
+// function checkInvalidFields(doc: TextDocument, docLines: Array<string>, parsedToJS: Record<string, unknown>) {
+// 	const keys = Object.keys(parsedToJS);
+// 	const validKeys = [];
+// 	for (let i=0; i<keys.length; i++){
+// 		if (!keys[i] in validKeys){
+
+// 		}
+// 	}
+// }
 
 module.exports = {handleDiagnostics};
