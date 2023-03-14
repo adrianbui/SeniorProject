@@ -15,11 +15,8 @@ import {
 	TextDocumentPositionParams,
 	TextDocumentSyncKind,
 	InitializeResult,
-<<<<<<< HEAD
-=======
 	MarkupKind,
 	Hover,
->>>>>>> ea2d240 (hover working)
 	Range
 } from 'vscode-languageserver/node';
 
