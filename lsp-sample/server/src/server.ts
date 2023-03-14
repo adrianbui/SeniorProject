@@ -15,6 +15,11 @@ import {
 	TextDocumentPositionParams,
 	TextDocumentSyncKind,
 	InitializeResult,
+<<<<<<< HEAD
+=======
+	MarkupKind,
+	Hover,
+>>>>>>> ea2d240 (hover working)
 	Range
 } from 'vscode-languageserver/node';
 
@@ -63,7 +68,8 @@ connection.onInitialize((params: InitializeParams) => {
 			// Tell the client that this server supports code completion.
 			completionProvider: {
 				resolveProvider: true
-			}
+			},
+			hoverProvider: true
 		}
 	};
 	if (hasWorkspaceFolderCapability) {
@@ -246,6 +252,58 @@ connection.onDidChangeWatchedFiles(_change => {
 	connection.console.log('We received an file change event');
 });
 
+connection.onHover((textDocumentPosition: TextDocumentPositionParams): Hover | null => {
+    const document = documents.get(textDocumentPosition.textDocument.uri);
+    if (!document) {
+        return null;
+    }
+
+    const { line, character } = textDocumentPosition.position;
+    
+	const lineText = document.getText({
+        start: { line, character: 0 },
+        end: { line: line + 1, character: 0 }
+    });
+
+    const wordRange = getWordRange(lineText, character);
+    const word = lineText.substring(wordRange.start.character, wordRange.end.character);
+
+	let hoverMessage;
+	if (word.length === 0) {
+		hoverMessage = "No word found";
+	} else {
+		hoverMessage = `We are hoving over this word: '${word}'.`;
+	}
+    
+	const hover: Hover = {
+		contents: {
+			kind: MarkupKind.Markdown,
+			value: hoverMessage
+		},
+		range: wordRange
+    };
+	return hover;
+});
+
+function getWordRange(lineText: string, position: number): Range {
+    const regex = /\w+/g;
+    let match: RegExpExecArray | null;
+
+    while (match = regex.exec(lineText)) {
+        if (position >= match.index && position < match.index + match[0].length) {
+            return {
+                start: { line: 0, character: match.index },
+                end: { line: 0, character: match.index + match[0].length }
+            };
+        }
+    }
+
+    return {
+        start: { line: 0, character: 0 },
+        end: { line: 0, character: 0 }
+    };
+}
+
 // This handler provides the initial list of the completion items.
 connection.onCompletion(
 	(_textDocumentPosition: TextDocumentPositionParams): CompletionItem[] => {
@@ -283,6 +341,7 @@ connection.onCompletionResolve(
 		return item;
 	}
 );
+
 
 // Make the text document manager listen on the connection
 // for open, change and close text document events
