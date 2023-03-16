@@ -83,7 +83,7 @@ function createDiaMissingReqField(
 	const diagnostic: Diagnostic = {
 		severity: DiagnosticSeverity.Error,
 		range: Range.create(lineIndex, 0, lineIndex, lineString.length),
-		message: `Sigma File is missing required tag(s): ${missingTags}`,
+		message: `Sigma File is missing required field(s): ${missingTags}`,
 		source: 'umn-sigma-lsp',
 		code: "sigma_MissingReqField"
 	};
@@ -95,14 +95,14 @@ function createDiaMissingReqField(
 // lineStringEnd is the string of the last line
 function createDiaAuthorNotString(
     doc: TextDocument,
-	lineStringEnd: string, 
+	lastLineString: string, 
     lineIndexStart: number,
 	lineIndexEnd: number
 ): Diagnostic { 
 	// TODO range should include the next line(s) if the author value is a list
 	const diagnostic: Diagnostic = {
 		severity: DiagnosticSeverity.Error,
-		range: Range.create(lineIndexStart, 0, lineIndexEnd, lineStringEnd.length),
+		range: Range.create(lineIndexStart, 0, lineIndexEnd, lastLineString.length),
 		message: 'Author value must be a string',
 		source: 'umn-sigma-lsp',
 		code: "sigma_AuthorNotString"
@@ -278,39 +278,61 @@ function checkLowercaseTags(doc: TextDocument, docLines: Array<string>, parsedTo
 	return tempDiagnostics;
 }
 
+
+/**
+ * Checks that the value of the author field is the correct type
+ * The type of the author field should be a string, not a list, according to https://github.com/SigmaHQ/sigma/wiki/Rule-Creation-Guide
+ * If the value of author field is a YAML mapping or sequence, diagnostic may be multiple lines
+ * 
+ * @param {TextDocument} doc has the contents of the current file
+ * @param {Array<string>} docLines each line of the file as a string
+ * @param {Record<string, unknown>} parsedToJS javascript object with parsed contents of yaml file
+ * @return {tempDiagnostics} array of diagnostics to be displayed
+ */
 function checkAuthor(doc: TextDocument, docLines: Array<string>, parsedToJS: Record<string, unknown>){
-	// type of the author field should be a string, not a list, according to https://github.com/SigmaHQ/sigma/wiki/Rule-Creation-Guide
+	// 
 	const tempDiagnostics: Diagnostic[] = [];
 	const authorValue = parsedToJS.author;
 
-	// get the next key so that the author diagnostic will be on all lines until the next key
-	const keys = Object.keys(parsedToJS);
-	const nextIndex = keys.indexOf("author")+1;
-	const nextField = keys[nextIndex];
+	console.log('checkAuthor called');
+	// TODO add diagnostic for needing quotation marks around @ symbol in author value
+	//const atSymbol = lineString.indexOf("@");
 
-	// need quotation marks around @ symbol if adding twitter handle
-
+	// value is invalid if not a string
 	if (typeof authorValue !== 'string' && !(authorValue instanceof String)){
 		// get the line that author is on
 		for (let i = 0; i < doc.lineCount; i++) {
 			const lineString = docLines[i];
 			if (lineString.match(/^author:/)) {
-				// if (Array.isArray(authorValue)){
-				// 	const lineIndexEnd = i + authorValue.length;
-				// 	const lastString = docLines[lineIndexEnd] // to get the length of last line to end the diagnostic
-				// 	tempDiagnostics.push(createDiaAuthorNotString(doc,lastString,i,lineIndexEnd));
-				// }
-				const atSymbol = lineString.indexOf("@");
+				// get the next key so that the author diagnostic will be on all lines until the next key
+
+				const keys = Object.keys(parsedToJS);
+				const nextIndex = keys.indexOf("author")+1;
+				const nextField = keys[nextIndex];
+				console.log('next field after author: ', nextField);
+
 				if (nextField){ // if author isn't the last field
 					let j=i+1;
-					const currentLine = docLines[j];
-					while (!currentLine.match(`/^${nextField}:/`)){
+					// finds the line that nextField is on
+					// the diagnostic will range from author to the line before nextField
+					const regex = new RegExp(`^${nextField}:`);
+					let currentLine, matchedRegex;
+					while (!matchedRegex && j<doc.lineCount){
+						currentLine = docLines[j];
+						matchedRegex = currentLine.match(regex);
+						console.log('matched Regex: ', matchedRegex);
+						console.log('currentLine: ', currentLine);
 						j++;
 					}
-					console.log('last line j was at: ', docLines[j]);
-					const idxBeforeNextField = j-1;
-					const lastString = docLines[idxBeforeNextField];
-					tempDiagnostics.push(createDiaAuthorNotString(doc,lastString,i,idxBeforeNextField));
+					if (!matchedRegex){ // just in case we didn't find nextField for some reason
+						tempDiagnostics.push(createDiaAuthorNotString(doc,lineString,i,i));
+					} else {
+						console.log('last line j was at: ', currentLine);
+						const idxBeforeNextField = j-2;
+						const lastString = docLines[idxBeforeNextField]; // the line before nextField is the last line in the diagnostic
+						console.log('last line in author diagnostic: ', lastString);
+						tempDiagnostics.push(createDiaAuthorNotString(doc,lastString,i,idxBeforeNextField));
+					}
 				} else { // if author is for some reason the last field
 					tempDiagnostics.push(createDiaAuthorNotString(doc,lineString,i,i));
 				}
@@ -349,7 +371,7 @@ function checkRequiredFields(doc: TextDocument, docLines: Array<string>, parsedT
 		missingFields.push("detection");
 		missingFields.push("condition");
 	} else {
-		if (!Array.isArray(parsedToJS.detection) || !("condition" in parsedToJS.detection)){
+		if (!(typeof parsedToJS.detection === 'object') || parsedToJS.detection === null || !("condition" in parsedToJS.detection)){
 			console.log('condition is missing');
 			missingFields.push("condition");
 		}
