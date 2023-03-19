@@ -66,7 +66,7 @@ export function handleDiagnostics(doc: TextDocument, parsedToJS: Record<string, 
 	return diagnostics;
 }
 
-
+// References value has to be a list 
 
 // Helper Functions to Create Diagnostics
 
@@ -104,6 +104,21 @@ function createDiaAuthorNotString(
 		severity: DiagnosticSeverity.Error,
 		range: Range.create(lineIndexStart, 0, lineIndexEnd, lastLineString.length),
 		message: 'Author value must be a string',
+		source: 'umn-sigma-lsp',
+		code: "sigma_AuthorNotString"
+	};
+	return diagnostic;
+}
+
+function createDiaAtSymbolNeedsQuotes(
+	doc: TextDocument,
+	lineString: string, 
+    lineIndex: number,
+): Diagnostic { 
+	const diagnostic: Diagnostic = {
+		severity: DiagnosticSeverity.Error,
+		range: Range.create(lineIndex, 0, lineIndex, lineString.length),
+		message: 'Must include quotation marks around author value if @ is present',
 		source: 'umn-sigma-lsp',
 		code: "sigma_AuthorNotString"
 	};
@@ -239,6 +254,20 @@ function createDiaDescTooShort(
     return diagnostic;
 }
 
+function checkType(doc: TextDocument, docLines: Array<string>, parsedToJS: Record<string, unknown>,requiredType:string){
+	const tempDiagnostics: Diagnostic[] = [];
+	const authorValue = parsedToJS.author;
+	const tagsValue = parsedToJS.tags; //check for tags key value 
+
+	if (typeof authorValue !== 'string' && !(authorValue instanceof String)){	
+		
+		// check for each key value 
+			
+
+	}
+}
+
+
 
 function checkLowercaseTags(doc: TextDocument, docLines: Array<string>, parsedToJS: Record<string, unknown>){
 	const tempDiagnostics: Diagnostic[] = [];
@@ -293,19 +322,24 @@ function checkAuthor(doc: TextDocument, docLines: Array<string>, parsedToJS: Rec
 	// 
 	const tempDiagnostics: Diagnostic[] = [];
 	const authorValue = parsedToJS.author;
+	const lineString = docLines[0]; 
 
 	console.log('checkAuthor called');
 	// TODO add diagnostic for needing quotation marks around @ symbol in author value
+
 	//const atSymbol = lineString.indexOf("@");
+	// 
+
+
 
 	// value is invalid if not a string
-	if (typeof authorValue !== 'string' && !(authorValue instanceof String)){
+		if (typeof authorValue !== 'string' && !(authorValue instanceof String)){
 		// get the line that author is on
 		for (let i = 0; i < doc.lineCount; i++) {
 			const lineString = docLines[i];
 			if (lineString.match(/^author:/)) {
 				// get the next key so that the author diagnostic will be on all lines until the next key
-
+				
 				const keys = Object.keys(parsedToJS);
 				const nextIndex = keys.indexOf("author")+1;
 				const nextField = keys[nextIndex];
@@ -338,12 +372,22 @@ function checkAuthor(doc: TextDocument, docLines: Array<string>, parsedToJS: Rec
 				}
 				
 				return tempDiagnostics;
-			}
 			
+			}
 		}
-	}
-	return tempDiagnostics;
-}
+
+		}else if (authorValue.includes("@") && !(authorValue.match(/^["'].*["']$/))){ 
+			console.log("author Value:",authorValue);
+			for (let i = 0; i < doc.lineCount; i++) {
+				const lineString = docLines[i];
+				if (lineString.match(/^author:/)) {
+					tempDiagnostics.push(createDiaAtSymbolNeedsQuotes(doc,lineString, i));
+					console.log("at statement reached");
+					
+				}
+			}
+		} 
+	return tempDiagnostics;}
 
 /**
  * Checks that all required Sigma fields are present in the yaml file
