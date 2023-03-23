@@ -11,7 +11,8 @@ import {
 	TextDocumentPositionParams,
 	TextDocumentSyncKind,
 	InitializeResult,
-	Range
+	Range,
+    TextEdit
 } from 'vscode-languageserver/node';
 
 import {
@@ -44,14 +45,27 @@ export function handleCompletion(documents: TextDocuments<TextDocument>, textDoc
             {
                 label: 'title:',
                 kind: CompletionItemKind.Text,
-                data: 1
+                data: 1,
+                insertText: "title:", 
+                commitCharacters: [':']
             },
             {
                 label: 'description:',
                 kind: CompletionItemKind.Text,
-                data: 2
+                data: 2,
+                commitCharacters: [':']
             }
         ].filter(item => !existingWords.has(item.label));
+
+        if (lineNumber <= 2){
+            filteredItems.push({
+                label: "newrule",
+                kind: CompletionItemKind.Text,
+                data: 3,
+                insertText: "title:\nid:\ndescription:\n",
+                commitCharacters: []
+            });
+        }
 
         // Return the filtered completion items if the current line does not contain one yet
         if (!lineText?.includes('title') && !lineText?.includes('description')) {
