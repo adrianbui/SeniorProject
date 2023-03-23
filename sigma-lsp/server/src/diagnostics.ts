@@ -25,7 +25,7 @@ export function handleDiagnostics(doc: TextDocument, parsedToJS: Record<string, 
 
 
 	if("author" in parsedToJS) {
-		const tempArr = checkAuthor(doc, lines, parsedToJS);
+		const tempArr = checkType("string", "author", doc, lines, parsedToJS);
 		diagnostics.push(...tempArr);
 	}
 
@@ -90,6 +90,26 @@ function createDiaMissingReqField(
 	return diagnostic;
 }
 
+// this diagnostic could be on multiple lines
+function createDiaIncorrectType(
+    doc: TextDocument,
+	lastLineString: string, // the string of the last line
+    lineIndexStart: number,
+	lineIndexEnd: number,
+	sigmaKey: string,
+	requiredValue: string
+): Diagnostic { 
+	// TODO range should include the next line(s) if the author value is a list
+	const diagnostic: Diagnostic = {
+		severity: DiagnosticSeverity.Error,
+		range: Range.create(lineIndexStart, 0, lineIndexEnd, lastLineString.length),
+		message: `Value of key ${sigmaKey} must be of type ${requiredValue}`,
+		source: 'umn-sigma-lsp',
+		code: "sigma_IncorrectType"
+	};
+	return diagnostic;
+}
+
 
 // this diagnostic could be on multiple lines
 // lineStringEnd is the string of the last line
@@ -110,20 +130,20 @@ function createDiaAuthorNotString(
 	return diagnostic;
 }
 
-function createDiaAtSymbolNeedsQuotes(
-	doc: TextDocument,
-	lineString: string, 
-    lineIndex: number,
-): Diagnostic { 
-	const diagnostic: Diagnostic = {
-		severity: DiagnosticSeverity.Error,
-		range: Range.create(lineIndex, 0, lineIndex, lineString.length),
-		message: 'Must include quotation marks around author value if @ is present',
-		source: 'umn-sigma-lsp',
-		code: "sigma_AuthorNotString"
-	};
-	return diagnostic;
-}
+// function createDiaAtSymbolNeedsQuotes(
+// 	doc: TextDocument,
+// 	lineString: string, 
+//     lineIndex: number,
+// ): Diagnostic { 
+// 	const diagnostic: Diagnostic = {
+// 		severity: DiagnosticSeverity.Error,
+// 		range: Range.create(lineIndex, 0, lineIndex, lineString.length),
+// 		message: 'Must include quotation marks around author value if @ is present',
+// 		source: 'umn-sigma-lsp',
+// 		code: "sigma_AuthorAtSymbol"
+// 	};
+// 	return diagnostic;
+// }
 
 function createDiaTagNotSequence(
     doc: TextDocument,
@@ -254,19 +274,138 @@ function createDiaDescTooShort(
     return diagnostic;
 }
 
-function checkType(doc: TextDocument, docLines: Array<string>, parsedToJS: Record<string, unknown>,requiredType:string){
-	const tempDiagnostics: Diagnostic[] = [];
-	const authorValue = parsedToJS.author;
-	const tagsValue = parsedToJS.tags; //check for tags key value 
-
-	if (typeof authorValue !== 'string' && !(authorValue instanceof String)){	
-		
-		// check for each key value 
-			
-
+/**
+ * Checks whether a sigma value is of the correct type for that key
+ * @param {string} requiredType correct type of the sigma value according to sigma docs
+ * @param {string} sigmaKey current sigma key
+ * @param {TextDocument} doc has the contents of the current file
+ * @param {Array<string>} docLines each line of the file as a string
+ * @param {Record<string, unknown>} parsedToJS javascript object with parsed contents of yaml file
+ * @return {tempDiagnostics} array of diagnostics to be displayed
+ */
+function checkType(requiredType: string, sigmaKey: string, doc: TextDocument, docLines: Array<string>, parsedToJS: Record<string, unknown>){
+	if (requiredType === "string") {
+		return checkString(sigmaKey, doc, docLines, parsedToJS);
 	}
+	const tempDiagnostics: Diagnostic[] = [];
+	return tempDiagnostics;
 }
 
+/**
+ * Checks whether a sigma value is a string
+ * @param {string} sigmaKey target sigma key, ex: "author"
+ * @param {TextDocument} doc has the contents of the current file
+ * @param {Array<string>} docLines each line of the file as a string
+ * @param {Record<string, unknown>} parsedToJS javascript object with parsed contents of yaml file
+ * @return {tempDiagnostics} array of diagnostics to be displayed
+ */
+function checkString(sigmaKey: string, doc: TextDocument, docLines: Array<string>, parsedToJS: Record<string, unknown>){
+	const tempDiagnostics: Diagnostic[] = [];
+	const sigmaValue = parsedToJS[sigmaKey]; // parsed value for the current sigma key
+
+	if (typeof sigmaValue !== 'string' && !(sigmaValue instanceof String)){
+		// get the line that author is on
+		for (let i = 0; i < doc.lineCount; i++) {
+			const lineString = docLines[i];
+			const regex = new RegExp(`^${sigmaKey}:`); // to find line line that starts with sigmaKey
+			if (lineString.match(regex)) {
+				// get the next key so that the author diagnostic will be on all lines until the next key
+				
+				const keys = Object.keys(parsedToJS);
+				const nextIndex = keys.indexOf(sigmaKey)+1;
+				const nextField = keys[nextIndex];
+				console.log(`next field after ${sigmaKey}: `, nextField);
+
+				if (nextField){ // if sigmaKey isn't the last field
+					let j=i+1;
+					// find the line that nextField is on
+					// the diagnostic will range from sigmaKey's line to the line before nextField
+					const regex = new RegExp(`^${nextField}:`);
+					let currentLine, matchedRegex;
+					while (!matchedRegex && j<doc.lineCount){
+						currentLine = docLines[j];
+						matchedRegex = currentLine.match(regex);
+						console.log('matched Regex: ', matchedRegex);
+						console.log('currentLine: ', currentLine);
+						j++;
+					}
+					if (!matchedRegex){ // just in case we didn't find nextField for some reason
+						tempDiagnostics.push(createDiaIncorrectType(doc,lineString,i,i,sigmaKey,"string"));
+					} else {
+						console.log('last line j was at: ', currentLine);
+						const idxBeforeNextField = j-2;
+						const lastString = docLines[idxBeforeNextField]; // the line before nextField is the last line in the diagnostic
+						console.log('last line in author diagnostic: ', lastString);
+						tempDiagnostics.push(createDiaIncorrectType(doc,lastString,i,idxBeforeNextField,sigmaKey,"string"));
+					}
+				} else { // if author is for some reason the last field
+					tempDiagnostics.push(createDiaIncorrectType(doc,lineString,i,i,sigmaKey,"string"));
+				}
+				return tempDiagnostics;
+			}
+		}
+	}
+	return tempDiagnostics;
+}
+
+
+// Still working on this one
+/**
+ * Checks whether a sigma value is a YAML array/sequence
+ * @param {string} sigmaKey target sigma key, ex: "author"
+ * @param {TextDocument} doc has the contents of the current file
+ * @param {Array<string>} docLines each line of the file as a string
+ * @param {Record<string, unknown>} parsedToJS javascript object with parsed contents of yaml file
+ * @return {tempDiagnostics} array of diagnostics to be displayed
+ */
+function checkArray(sigmaKey: string, doc: TextDocument, docLines: Array<string>, parsedToJS: Record<string, unknown>){
+	const tempDiagnostics: Diagnostic[] = [];
+	const sigmaValue = parsedToJS[sigmaKey]; // parsed value for the current sigma key
+
+	if (!Array.isArray(sigmaValue)){
+		// get the line that author is on
+		for (let i = 0; i < doc.lineCount; i++) {
+			const lineString = docLines[i];
+			const regex = new RegExp(`^${sigmaKey}:`); // to find line line that starts with sigmaKey
+			if (lineString.match(regex)) {
+				// get the next key so that the author diagnostic will be on all lines until the next key
+				
+				const keys = Object.keys(parsedToJS);
+				const nextIndex = keys.indexOf(sigmaKey)+1;
+				const nextField = keys[nextIndex];
+				console.log(`next field after ${sigmaKey}: `, nextField);
+
+				if (nextField){ // if sigmaKey isn't the last field
+					let j=i+1;
+					// find the line that nextField is on
+					// the diagnostic will range from sigmaKey's line to the line before nextField
+					const regex = new RegExp(`^${nextField}:`);
+					let currentLine, matchedRegex;
+					while (!matchedRegex && j<doc.lineCount){
+						currentLine = docLines[j];
+						matchedRegex = currentLine.match(regex);
+						console.log('matched Regex: ', matchedRegex);
+						console.log('currentLine: ', currentLine);
+						j++;
+					}
+					if (!matchedRegex){ // just in case we didn't find nextField for some reason
+						tempDiagnostics.push(createDiaIncorrectType(doc,lineString,i,i,sigmaKey,"array"));
+					} else {
+						console.log('last line j was at: ', currentLine);
+						const idxBeforeNextField = j-2;
+						const lastString = docLines[idxBeforeNextField]; // the line before nextField is the last line in the diagnostic
+						console.log('last line in author diagnostic: ', lastString);
+						tempDiagnostics.push(createDiaIncorrectType(doc,lastString,i,idxBeforeNextField,sigmaKey,"array"));
+					}
+				} else { // if author is for some reason the last field
+					tempDiagnostics.push(createDiaIncorrectType(doc,lineString,i,i,sigmaKey,"array"));
+				}
+				return tempDiagnostics;
+			}
+		}
+	}
+	return tempDiagnostics;
+}
 
 
 function checkLowercaseTags(doc: TextDocument, docLines: Array<string>, parsedToJS: Record<string, unknown>){
@@ -322,18 +461,12 @@ function checkAuthor(doc: TextDocument, docLines: Array<string>, parsedToJS: Rec
 	// 
 	const tempDiagnostics: Diagnostic[] = [];
 	const authorValue = parsedToJS.author;
-	const lineString = docLines[0]; 
 
 	console.log('checkAuthor called');
 	// TODO add diagnostic for needing quotation marks around @ symbol in author value
 
-	//const atSymbol = lineString.indexOf("@");
-	// 
-
-
-
 	// value is invalid if not a string
-		if (typeof authorValue !== 'string' && !(authorValue instanceof String)){
+	if (typeof authorValue !== 'string' && !(authorValue instanceof String)){
 		// get the line that author is on
 		for (let i = 0; i < doc.lineCount; i++) {
 			const lineString = docLines[i];
@@ -370,24 +503,23 @@ function checkAuthor(doc: TextDocument, docLines: Array<string>, parsedToJS: Rec
 				} else { // if author is for some reason the last field
 					tempDiagnostics.push(createDiaAuthorNotString(doc,lineString,i,i));
 				}
-				
 				return tempDiagnostics;
-			
 			}
 		}
-
-		}else if (authorValue.includes("@") && !(authorValue.match(/^["'].*["']$/))){ 
-			console.log("author Value:",authorValue);
-			for (let i = 0; i < doc.lineCount; i++) {
-				const lineString = docLines[i];
-				if (lineString.match(/^author:/)) {
-					tempDiagnostics.push(createDiaAtSymbolNeedsQuotes(doc,lineString, i));
-					console.log("at statement reached");
-					
-				}
-			}
-		} 
-	return tempDiagnostics;}
+	}
+	// } else if (authorValue.includes("@") && !(authorValue.match(/^["'].*["']$/))){ 
+	// 	console.log("author Value:",authorValue);
+	// 	for (let i = 0; i < doc.lineCount; i++) {
+	// 		const lineString = docLines[i];
+	// 		if (lineString.match(/^author:/)) {
+	// 			tempDiagnostics.push(createDiaAtSymbolNeedsQuotes(doc,lineString, i));
+	// 			console.log("at statement reached");
+				
+	// 		}
+	// 	}
+	// } 
+	return tempDiagnostics;
+}
 
 /**
  * Checks that all required Sigma fields are present in the yaml file
