@@ -21,7 +21,7 @@ import {
 import * as YAML from "yaml";
 
 import {handleDiagnostics} from './diagnostics';
-import {handleCompletion} from './completion';
+import {handleCompletion,handleCompletionResolve} from './completion';
 
 import {
 	TextDocument
@@ -249,34 +249,14 @@ connection.onDidChangeWatchedFiles(_change => {
 });
 
 connection.onCompletion((textDocumentPosition: TextDocumentPositionParams): CompletionItem[] => {
-
 	return handleCompletion(documents,textDocumentPosition);
-
 });
-
-
-
-
-  
-
 
 // This handler resolves additional information for the item selected in
 // the completion list.
-connection.onCompletionResolve(
-	(item: CompletionItem): CompletionItem => {
-		if (item.data === 1) {
-			item.detail = 'Sigma Attribute [required]';
-			item.documentation = 'A brief title for the rule that should contain what the rules is supposed to detect (max. 256 characters)';
-			return item;
-			
-		} else if (item.data === 2) {
-			item.detail = 'Sigma Attribute [optional]';
-			item.documentation = 'A short description of the rule and the malicious activity that can be detected (max. 65,535 characters)';
-			return item;
-		}
-		return item;
-	}
-);
+connection.onCompletionResolve((item: CompletionItem): CompletionItem => {
+		return handleCompletionResolve(item);
+});
 
 // Make the text document manager listen on the connection
 // for open, change and close text document events
