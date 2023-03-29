@@ -11,9 +11,9 @@ import {
 } from 'vscode-languageserver-textdocument';
 import { error } from 'console';
 import { getTags } from 'yaml/dist/schema/tags';
+import {requiredTypes} from './sigmaRequiredTypes';
 
 // Code adapted from https://github.com/humpalum/vscode-sigma/blob/main/src/diagnostics.ts
-
 
 export function handleDiagnostics(doc: TextDocument, parsedToJS: Record<string, unknown>) {
     const lines = doc.getText().split('\n');
@@ -23,16 +23,19 @@ export function handleDiagnostics(doc: TextDocument, parsedToJS: Record<string, 
 	diagnostics.push(...checkRequiredFields(doc,lines,parsedToJS));
 	//diagnostics.push(...checkInvalidFields(doc,lines,parsedToJS));
 
-
-	if("author" in parsedToJS) {
-		const tempArr = checkType("string", "author", doc, lines, parsedToJS);
-		diagnostics.push(...tempArr);
-	}
+	// flatten parsedToJS so that nested keys exist at the top level
+	// this helps loop through all keys in checkType
+	const flatParsedToJS = flattenObject(parsedToJS);
+	console.log('flattened parsedToJS', flatParsedToJS);
+	// call checkType on all keys including nested keys
+	diagnostics.push(...checkTypeOfAllKeys(flatParsedToJS, doc,lines));
 
 	if("tags" in parsedToJS) {
 		console.log('tags attribute exists');
 		const tempArr = checkLowercaseTags(doc, lines, parsedToJS);
+		//const tempArr2 = checkType("array", "tags", doc, lines, parsedToJS);
 		diagnostics.push(...tempArr);
+		//diagnostics.push(...tempArr2);
 	}
 
     for (let i = 0; i < doc.lineCount; i++) {
@@ -66,7 +69,63 @@ export function handleDiagnostics(doc: TextDocument, parsedToJS: Record<string, 
 	return diagnostics;
 }
 
-// References value has to be a list 
+/**
+ * Checks that the type of each key matches the required type as in sigmaRequiredTypes.ts
+ * 
+ * @param {Record<string, unknown>} flatParsedToJS flattened parsedToJs (parsed yaml)
+ * @param {TextDocument} doc has the contents of the current file
+ * @param {Array<string>} docLines each line of the file as a string
+ * @return {flatParsedToJS} flattened version of the object
+ */
+function checkTypeOfAllKeys(flatParsedToJS: Record<string, unknown>, doc: TextDocument, docLines: Array<string>){
+	const diagnostics: Diagnostic[] = [];
+	const keysArr = Object.keys(flatParsedToJS);
+	let lastCheckedLine = 0; // this keeps track of how far we've iterated through the file
+	// checks that the type of each value matches the required type specified in sigmaRequiredTypes.js
+	for (let i=0; i<keysArr.length; i++){
+		const key = keysArr[i];
+		const value = flatParsedToJS[key as keyof typeof flatParsedToJS];
+		if (key in requiredTypes){
+			const requiredType = requiredTypes[key as keyof typeof requiredTypes];
+			const returnVal = checkType(requiredType,key,doc,docLines,flatParsedToJS,lastCheckedLine);
+			const tempArr:Diagnostic[] = returnVal[0];
+			lastCheckedLine = returnVal[1];
+			diagnostics.push(...tempArr);
+		}
+	}
+	return diagnostics;
+}
+
+/**
+ * Flattens a javascript object so that nested fields become top-level fields
+ * Used to call checkType on each field sequentially
+ * Note: Only checks for one level of nesting
+ * 
+ * @param {Record<string, unknown>} parsedToJS javascript object with parsed contents of yaml file
+ * @return {flatParsedToJS} flattened version of the object
+ */
+function flattenObject(parsedToJS:Record<string, unknown>){
+	const flatParsedToJS:Record<string, unknown> = {};
+	const keysArr = Object.keys(parsedToJS);
+	for (let i=0; i<keysArr.length; i++){
+		const key = keysArr[i];
+		const value = parsedToJS[key as keyof typeof parsedToJS];
+		if (typeof value === 'object' && !Array.isArray(value) && value !== null){ // if it's an object (contains nested fields)
+			flatParsedToJS[key] = value; // add the field itself before adding nested fields
+			const subKeysArr = Object.keys(value);
+			for (let j=0; j<subKeysArr.length; j++){
+				const subKey = subKeysArr[j];
+				const subValue = value[subKey as keyof typeof value];
+				flatParsedToJS[subKey] = subValue; // add each nested field
+			}
+		} else { // it's not an object
+			flatParsedToJS[key] = value;
+		}
+	}
+	return flatParsedToJS;
+}
+
+
 
 // Helper Functions to Create Diagnostics
 
@@ -145,20 +204,6 @@ function createDiaAuthorNotString(
 // 	return diagnostic;
 // }
 
-function createDiaTagNotSequence(
-    doc: TextDocument,
-	lineString: string, 
-    lineIndex: number,
-): Diagnostic {
-	const diagnostic: Diagnostic = {
-		severity: DiagnosticSeverity.Error,
-		range: Range.create(lineIndex, 0, lineIndex, lineString.length),
-		message: 'Tags value must be a yaml Sequence',
-		source: 'umn-sigma-lsp',
-		code: "sigma_TagNotSequence"
-	};
-	return diagnostic;
-}
 
 function createDiaLowercaseTag(
     doc: TextDocument,
@@ -281,35 +326,45 @@ function createDiaDescTooShort(
  * @param {TextDocument} doc has the contents of the current file
  * @param {Array<string>} docLines each line of the file as a string
  * @param {Record<string, unknown>} parsedToJS javascript object with parsed contents of yaml file
+ * @param {number} lastCheckedLine the line that the last key we checked was on, to avoid re-iterating
  * @return {tempDiagnostics} array of diagnostics to be displayed
  */
-function checkType(requiredType: string, sigmaKey: string, doc: TextDocument, docLines: Array<string>, parsedToJS: Record<string, unknown>){
+function checkType(
+		requiredType: string, 
+		sigmaKey: string, 
+		doc: TextDocument, 
+		docLines: Array<string>, 
+		parsedToJS: Record<string, unknown>,
+		lastCheckedLine: number
+	): [Diagnostic[], number]{
+	const tempDiagnostics: Diagnostic[] = [];
+	const sigmaValue = parsedToJS[sigmaKey]; // parsed value for the current sigma key
+	console.log(`called checkType on key ${sigmaKey}, required type is: ${requiredType}`);
+	let wrongType;
+	
 	if (requiredType === "string") {
-		return checkString(sigmaKey, doc, docLines, parsedToJS);
+		wrongType = typeof sigmaValue !== 'string' && !(sigmaValue instanceof String);
+		//return checkString(sigmaKey, doc, docLines, parsedToJS);
+	} else if (requiredType === "array") {
+		wrongType = !Array.isArray(sigmaValue);
+		//return checkArray(sigmaKey, doc, docLines, parsedToJS);
+	} else if (requiredType === "object") {
+		// TODO implement this
+		// wrongType = !Array.isArray(sigmaValue);
+		// //return checkArray(sigmaKey, doc, docLines, parsedToJS);
+	} else {
+		return [tempDiagnostics,lastCheckedLine];
 	}
-	const tempDiagnostics: Diagnostic[] = [];
-	return tempDiagnostics;
-}
-
-/**
- * Checks whether a sigma value is a string
- * @param {string} sigmaKey target sigma key, ex: "author"
- * @param {TextDocument} doc has the contents of the current file
- * @param {Array<string>} docLines each line of the file as a string
- * @param {Record<string, unknown>} parsedToJS javascript object with parsed contents of yaml file
- * @return {tempDiagnostics} array of diagnostics to be displayed
- */
-function checkString(sigmaKey: string, doc: TextDocument, docLines: Array<string>, parsedToJS: Record<string, unknown>){
-	const tempDiagnostics: Diagnostic[] = [];
-	const sigmaValue = parsedToJS[sigmaKey]; // parsed value for the current sigma key
-
-	if (typeof sigmaValue !== 'string' && !(sigmaValue instanceof String)){
-		// get the line that author is on
-		for (let i = 0; i < doc.lineCount; i++) {
+	
+	if (wrongType){
+		// get the line that sigmaKey is on
+		for (let i = lastCheckedLine; i < doc.lineCount; i++) {
 			const lineString = docLines[i];
-			const regex = new RegExp(`^${sigmaKey}:`); // to find line line that starts with sigmaKey
+			console.log('current Line: ', lineString);
+			const regex = new RegExp(`^\\s*${sigmaKey}:`); // to find line line that starts with sigmaKey
+			console.log('regex', regex);
 			if (lineString.match(regex)) {
-				// get the next key so that the author diagnostic will be on all lines until the next key
+				// get the next key so that the current diagnostic will be on all lines until the next key
 				
 				const keys = Object.keys(parsedToJS);
 				const nextIndex = keys.indexOf(sigmaKey)+1;
@@ -320,92 +375,155 @@ function checkString(sigmaKey: string, doc: TextDocument, docLines: Array<string
 					let j=i+1;
 					// find the line that nextField is on
 					// the diagnostic will range from sigmaKey's line to the line before nextField
-					const regex = new RegExp(`^${nextField}:`);
-					let currentLine, matchedRegex;
+					// eslint-disable-next-line no-useless-escape
+					const regex = new RegExp(`^\\s*${nextField}:`);
+					let thisLine, matchedRegex;
 					while (!matchedRegex && j<doc.lineCount){
-						currentLine = docLines[j];
-						matchedRegex = currentLine.match(regex);
-						console.log('matched Regex: ', matchedRegex);
-						console.log('currentLine: ', currentLine);
+						thisLine = docLines[j];
+						matchedRegex = thisLine.match(regex);
+						//console.log('matched Regex: ', matchedRegex);
+						console.log('thisLine: ', thisLine);
 						j++;
 					}
 					if (!matchedRegex){ // just in case we didn't find nextField for some reason
-						tempDiagnostics.push(createDiaIncorrectType(doc,lineString,i,i,sigmaKey,"string"));
+						tempDiagnostics.push(createDiaIncorrectType(doc,lineString,i,i,sigmaKey,requiredType));
 					} else {
-						console.log('last line j was at: ', currentLine);
+						console.log('last line j was at: ', thisLine);
 						const idxBeforeNextField = j-2;
+						lastCheckedLine = idxBeforeNextField; // to pass in the next time we call checkType
 						const lastString = docLines[idxBeforeNextField]; // the line before nextField is the last line in the diagnostic
-						console.log('last line in author diagnostic: ', lastString);
-						tempDiagnostics.push(createDiaIncorrectType(doc,lastString,i,idxBeforeNextField,sigmaKey,"string"));
+						console.log('last line in current diagnostic: ', lastString);
+						tempDiagnostics.push(createDiaIncorrectType(doc,lastString,i,idxBeforeNextField,sigmaKey,requiredType));
 					}
-				} else { // if author is for some reason the last field
-					tempDiagnostics.push(createDiaIncorrectType(doc,lineString,i,i,sigmaKey,"string"));
+				} else { // if current key is the last field
+					tempDiagnostics.push(createDiaIncorrectType(doc,lineString,i,i,sigmaKey,requiredType));
 				}
-				return tempDiagnostics;
+				return [tempDiagnostics, lastCheckedLine];
 			}
 		}
 	}
-	return tempDiagnostics;
+	return [tempDiagnostics, lastCheckedLine];
+	
 }
 
+// /**
+//  * Checks whether a sigma value is a string
+//  * @param {string} sigmaKey target sigma key, ex: "author"
+//  * @param {TextDocument} doc has the contents of the current file
+//  * @param {Array<string>} docLines each line of the file as a string
+//  * @param {Record<string, unknown>} parsedToJS javascript object with parsed contents of yaml file
+//  * @return {tempDiagnostics} array of diagnostics to be displayed
+//  */
+// function checkString(sigmaKey: string, doc: TextDocument, docLines: Array<string>, parsedToJS: Record<string, unknown>){
+// 	const tempDiagnostics: Diagnostic[] = [];
+// 	const sigmaValue = parsedToJS[sigmaKey]; // parsed value for the current sigma key
+// 	console.log(`called checkString on key ${sigmaKey}`);
 
-// Still working on this one
-/**
- * Checks whether a sigma value is a YAML array/sequence
- * @param {string} sigmaKey target sigma key, ex: "author"
- * @param {TextDocument} doc has the contents of the current file
- * @param {Array<string>} docLines each line of the file as a string
- * @param {Record<string, unknown>} parsedToJS javascript object with parsed contents of yaml file
- * @return {tempDiagnostics} array of diagnostics to be displayed
- */
-function checkArray(sigmaKey: string, doc: TextDocument, docLines: Array<string>, parsedToJS: Record<string, unknown>){
-	const tempDiagnostics: Diagnostic[] = [];
-	const sigmaValue = parsedToJS[sigmaKey]; // parsed value for the current sigma key
-
-	if (!Array.isArray(sigmaValue)){
-		// get the line that author is on
-		for (let i = 0; i < doc.lineCount; i++) {
-			const lineString = docLines[i];
-			const regex = new RegExp(`^${sigmaKey}:`); // to find line line that starts with sigmaKey
-			if (lineString.match(regex)) {
-				// get the next key so that the author diagnostic will be on all lines until the next key
+// 	if (typeof sigmaValue !== 'string' && !(sigmaValue instanceof String)){
+// 		// get the line that author is on
+// 		for (let i = 0; i < doc.lineCount; i++) {
+// 			const lineString = docLines[i];
+// 			const regex = new RegExp(`^${sigmaKey}:`); // to find line line that starts with sigmaKey
+// 			if (lineString.match(regex)) {
+// 				// get the next key so that the author diagnostic will be on all lines until the next key
 				
-				const keys = Object.keys(parsedToJS);
-				const nextIndex = keys.indexOf(sigmaKey)+1;
-				const nextField = keys[nextIndex];
-				console.log(`next field after ${sigmaKey}: `, nextField);
+// 				const keys = Object.keys(parsedToJS);
+// 				const nextIndex = keys.indexOf(sigmaKey)+1;
+// 				const nextField = keys[nextIndex];
+// 				console.log(`next field after ${sigmaKey}: `, nextField);
 
-				if (nextField){ // if sigmaKey isn't the last field
-					let j=i+1;
-					// find the line that nextField is on
-					// the diagnostic will range from sigmaKey's line to the line before nextField
-					const regex = new RegExp(`^${nextField}:`);
-					let currentLine, matchedRegex;
-					while (!matchedRegex && j<doc.lineCount){
-						currentLine = docLines[j];
-						matchedRegex = currentLine.match(regex);
-						console.log('matched Regex: ', matchedRegex);
-						console.log('currentLine: ', currentLine);
-						j++;
-					}
-					if (!matchedRegex){ // just in case we didn't find nextField for some reason
-						tempDiagnostics.push(createDiaIncorrectType(doc,lineString,i,i,sigmaKey,"array"));
-					} else {
-						console.log('last line j was at: ', currentLine);
-						const idxBeforeNextField = j-2;
-						const lastString = docLines[idxBeforeNextField]; // the line before nextField is the last line in the diagnostic
-						console.log('last line in author diagnostic: ', lastString);
-						tempDiagnostics.push(createDiaIncorrectType(doc,lastString,i,idxBeforeNextField,sigmaKey,"array"));
-					}
-				} else { // if author is for some reason the last field
-					tempDiagnostics.push(createDiaIncorrectType(doc,lineString,i,i,sigmaKey,"array"));
-				}
-				return tempDiagnostics;
-			}
-		}
-	}
-	return tempDiagnostics;
-}
+// 				if (nextField){ // if sigmaKey isn't the last field
+// 					let j=i+1;
+// 					// find the line that nextField is on
+// 					// the diagnostic will range from sigmaKey's line to the line before nextField
+// 					const regex = new RegExp(`^${nextField}:`);
+// 					let lastCheckedLine, matchedRegex;
+// 					while (!matchedRegex && j<doc.lineCount){
+// 						lastCheckedLine = docLines[j];
+// 						matchedRegex = lastCheckedLine.match(regex);
+// 						//console.log('matched Regex: ', matchedRegex);
+// 						console.log('lastCheckedLine: ', lastCheckedLine);
+// 						j++;
+// 					}
+// 					if (!matchedRegex){ // just in case we didn't find nextField for some reason
+// 						tempDiagnostics.push(createDiaIncorrectType(doc,lineString,i,i,sigmaKey,"string"));
+// 					} else {
+// 						console.log('last line j was at: ', lastCheckedLine);
+// 						const idxBeforeNextField = j-2;
+// 						const lastString = docLines[idxBeforeNextField]; // the line before nextField is the last line in the diagnostic
+// 						console.log('last line in current diagnostic: ', lastString);
+// 						tempDiagnostics.push(createDiaIncorrectType(doc,lastString,i,idxBeforeNextField,sigmaKey,"string"));
+// 					}
+// 				} else { // if author is for some reason the last field
+// 					tempDiagnostics.push(createDiaIncorrectType(doc,lineString,i,i,sigmaKey,"string"));
+// 				}
+// 				return tempDiagnostics;
+// 			}
+// 		}
+// 	}
+// 	return tempDiagnostics;
+// }
+
+
+// // Still working on this one
+// /**
+//  * Checks whether a sigma value is a YAML array/sequence
+//  * @param {string} sigmaKey target sigma key, ex: "author"
+//  * @param {TextDocument} doc has the contents of the current file
+//  * @param {Array<string>} docLines each line of the file as a string
+//  * @param {Record<string, unknown>} parsedToJS javascript object with parsed contents of yaml file
+//  * @return {tempDiagnostics} array of diagnostics to be displayed
+//  */
+// function checkArray(sigmaKey: string, doc: TextDocument, docLines: Array<string>, parsedToJS: Record<string, unknown>){
+// 	const tempDiagnostics: Diagnostic[] = [];
+// 	const sigmaValue = parsedToJS[sigmaKey]; // parsed value for the current sigma key
+// 	console.log(`called checkArray on key ${sigmaKey}`);
+
+// 	if (!Array.isArray(sigmaValue)){
+// 		console.log(sigmaValue, "is not array");
+// 		// get the line that sigmaKey is on
+// 		for (let i = 0; i < doc.lineCount; i++) {
+// 			const lineString = docLines[i];
+// 			const regex = new RegExp(`^${sigmaKey}:`); // to find line line that starts with sigmaKey
+// 			if (lineString.match(regex)) {
+// 				// get the next key so that the author diagnostic will be on all lines until the next key
+				
+// 				const keys = Object.keys(parsedToJS);
+// 				const nextIndex = keys.indexOf(sigmaKey)+1;
+// 				const nextField = keys[nextIndex];
+// 				console.log(`next field after ${sigmaKey}: `, nextField);
+
+// 				if (nextField){ // if sigmaKey isn't the last field
+// 					let j=i+1;
+// 					// find the line that nextField is on
+// 					// the diagnostic will range from sigmaKey's line to the line before nextField
+// 					const regex = new RegExp(`^${nextField}:`);
+// 					let lastCheckedLine, matchedRegex;
+// 					while (!matchedRegex && j<doc.lineCount){
+// 						lastCheckedLine = docLines[j];
+// 						matchedRegex = lastCheckedLine.match(regex);
+// 						//console.log('matched Regex: ', matchedRegex);
+// 						console.log('lastCheckedLine: ', lastCheckedLine);
+// 						j++;
+// 					}
+// 					if (!matchedRegex){ // just in case we didn't find nextField for some reason
+// 						tempDiagnostics.push(createDiaIncorrectType(doc,lineString,i,i,sigmaKey,"array"));
+// 					} else {
+// 						console.log('last line j was at: ', lastCheckedLine);
+// 						const idxBeforeNextField = j-2;
+// 						const lastString = docLines[idxBeforeNextField]; // the line before nextField is the last line in the diagnostic
+// 						console.log('last line in current diagnostic: ', lastString);
+// 						tempDiagnostics.push(createDiaIncorrectType(doc,lastString,i,idxBeforeNextField,sigmaKey,"array"));
+// 					}
+// 				} else { // if author is for some reason the last field
+// 					tempDiagnostics.push(createDiaIncorrectType(doc,lineString,i,i,sigmaKey,"array"));
+// 				}
+// 				return tempDiagnostics;
+// 			}
+// 		}
+// 	}
+// 	return tempDiagnostics;
+// }
 
 
 function checkLowercaseTags(doc: TextDocument, docLines: Array<string>, parsedToJS: Record<string, unknown>){
@@ -435,13 +553,6 @@ function checkLowercaseTags(doc: TextDocument, docLines: Array<string>, parsedTo
 				return tempDiagnostics;
 			}
 		}	
-	} else {  // tags field is not a YAML sequence
-		for (let i = 0; i < doc.lineCount; i++) {
-			const lineString = docLines[i];
-			if (docLines[i].match(/^tags:/)) {
-				tempDiagnostics.push(createDiaTagNotSequence(doc,lineString,i));
-			}
-		}
 	}
 	return tempDiagnostics;
 }
@@ -483,18 +594,18 @@ function checkAuthor(doc: TextDocument, docLines: Array<string>, parsedToJS: Rec
 					// finds the line that nextField is on
 					// the diagnostic will range from author to the line before nextField
 					const regex = new RegExp(`^${nextField}:`);
-					let currentLine, matchedRegex;
+					let lastCheckedLine, matchedRegex;
 					while (!matchedRegex && j<doc.lineCount){
-						currentLine = docLines[j];
-						matchedRegex = currentLine.match(regex);
+						lastCheckedLine = docLines[j];
+						matchedRegex = lastCheckedLine.match(regex);
 						console.log('matched Regex: ', matchedRegex);
-						console.log('currentLine: ', currentLine);
+						console.log('lastCheckedLine: ', lastCheckedLine);
 						j++;
 					}
 					if (!matchedRegex){ // just in case we didn't find nextField for some reason
 						tempDiagnostics.push(createDiaAuthorNotString(doc,lineString,i,i));
 					} else {
-						console.log('last line j was at: ', currentLine);
+						console.log('last line j was at: ', lastCheckedLine);
 						const idxBeforeNextField = j-2;
 						const lastString = docLines[idxBeforeNextField]; // the line before nextField is the last line in the diagnostic
 						console.log('last line in author diagnostic: ', lastString);
