@@ -30,6 +30,8 @@ export function handleCompletion(documents: TextDocuments<TextDocument>, textDoc
             start: { line: lineNumber, character: 0 },
             end: { line: lineNumber, character: Number.MAX_VALUE }
         });
+        // const isCurrentLineLogSource = lineText?.trim().startsWith('logsource');
+
         
     
         // Get a list of words that have already been written in the current text document
@@ -75,27 +77,119 @@ export function handleCompletion(documents: TextDocuments<TextDocument>, textDoc
                 data: 3,
                 insertText:'logsource:\n\t'
             },
+            {
+                label: 'detection',
+                kind: CompletionItemKind.Text,
+                data: 9,
+                insertText: 'detection:\n  '
+            },
+            {
+                label: 'falsepositives',
+                kind: CompletionItemKind.Text,
+                data: 10,
+                insertText: 'falsepositives:\n  - '
+            },
+            {
+                label: 'level',
+                kind: CompletionItemKind.Text,
+                data: 11,
+                insertText: 'level: '
+            },
+            {
+                label: 'tags',
+                kind: CompletionItemKind.Text,
+                data: 12,
+                insertText: 'tags:\n  - '
+            },
+            {
+                label: 'status',
+                kind: CompletionItemKind.Text,
+                data: 13,
+                insertText: 'status: '
+            },
+            {
+                label: 'author',
+                kind: CompletionItemKind.Text,
+                data: 14,
+                insertText: 'author: '
+            },
+            {
+                label: 'date',
+                kind: CompletionItemKind.Text,
+                data: 15,
+                insertText: 'date: '
+            },
+            {
+                label: 'license',
+                kind: CompletionItemKind.Text,
+                data: 16,
+                insertText: 'license: '
+            },
+            {
+                label: 'updated',
+                kind: CompletionItemKind.Text,
+                data: 17,
+                insertText: 'updated: '
+            },
+            {
+                label: 'references',
+                kind: CompletionItemKind.Text,
+                data: 18,
+                insertText: 'references:\n  - '
+            },
+            {
+                label: 'fields',
+                kind: CompletionItemKind.Text,
+                data: 19,
+                insertText: 'fields:\n  - '
+            },
+            {
+                label: 'condition',
+                kind: CompletionItemKind.Text,
+                data: 20,
+                insertText: 'condition: '
+            },
+            {
+                label: 'aggregation',
+                kind: CompletionItemKind.Text,
+                data: 21,
+                insertText: 'aggregation: '
+            }
+            
             
         ].filter(item => !existingWords.has(item.label));
 
         //new rule option if at start of file
-        if (lineNumber <= 2){
+        if (lineNumber <= 2) {
             filteredItems.push({
                 label: "newrule",
                 kind: CompletionItemKind.Text,
                 data: 4,
-                insertText: "title: \nid: \ndescription: \n",
+                insertText: [
+                    "title: ",
+                    "id: ",
+                    "description: ",
+                    "author: ",
+                    "date: ",
+                    "updated: ",
+                    "license: ",
+                    "status: ",
+                    "references:\n  - ",
+                    "tags:\n  - ",
+                    "level: ",
+                    "logsource:\n  category: \n  product: ",
+                    "detection:\n  ",
+                    "falsepositives:\n  - ",
+                    "fields:\n  - ",
+                    "condition: ",
+                    "aggregation: "
+                ].join('\n')
             });
         }
+        
 
-        if (existingWords.has('logsource') && !existingWords.has('category')){
-            filteredItems.push({
-                label: "category",
-                kind: CompletionItemKind.Text,
-                data: 5,
-                insertText: "category: ",
-            });
-        }
+        
+            
 
         // Return the filtered completion items if the current line does not contain one yet
         // if (!lineText?.includes('title') && !lineText?.includes('description')) {
@@ -105,7 +199,7 @@ export function handleCompletion(documents: TextDocuments<TextDocument>, textDoc
         // }
         
         return filteredItems;
-}
+};
 
 export function handleCompletionResolve(item: CompletionItem){
     if (item.data === 2) {
@@ -117,7 +211,16 @@ export function handleCompletionResolve(item: CompletionItem){
         item.detail = 'Sigma Attribute [optional]';
         item.documentation = 'A short description of the rule and the malicious activity that can be detected (max. 65,535 characters)';
         return item;
+    }else if (item.data === 7) {
+        item.detail = 'Subheading under "logsource"';
+        item.documentation = 'The category subheading that goes under the logsource';
+        return item;
+    }
+    else if (item.data === 8) {
+        item.detail = 'Subheading under "logsource"';
+        item.documentation = 'The product subheading that goes under the logsource';
+        return item;
     }
     //TODO - more resolve items
     return item;     
-}
+};
