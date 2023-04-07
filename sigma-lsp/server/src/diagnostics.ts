@@ -51,19 +51,20 @@ export function handleDiagnostics(doc: TextDocument, parsedToJS: Record<string, 
 				diagnostics.push(createDiaSingleAll(doc, line, i));
 			}
 		}
-		// "Use a short title with less than 50 characters as an alert name"
+		// Recommendation: "Use a short title with less than 50 characters as an alert name"
 		// Sigma Docs: https://github.com/SigmaHQ/sigma/wiki/Rule-Creation-Guide
+		// Absolute max length is 256 chars https://github.com/SigmaHQ/sigma-specification/blob/main/Sigma_specification.md#description-optional
 		if (line.match(/^title:.{50,}/)) {
-			diagnostics.push(createDiaTitleTooLong(doc, line, i));
+			if (line.match(/^title:.{256,}/)) {
+				diagnostics.push(createDiaTitleTooLong(doc, line, i, 256));
+			} else {
+				diagnostics.push(createDiaTitleTooLong(doc, line, i, 50));
+			}
+			
 		}
 		const whitespaceMatch = line.match(/[\s]+$/);
 		if (whitespaceMatch) {
 			diagnostics.push(createDiaTrailingWhitespace(doc, line, i, whitespaceMatch[0].length));
-		}
-		if (line.match(/^description:.{0,32}$/)) {
-			if (!line.match(/^description:\s+\|\s*$/)) {
-				diagnostics.push(createDiaDescTooShort(doc, line, i));
-			}
 		}
 	}
 	return diagnostics;
@@ -189,21 +190,6 @@ function createDiaAuthorNotString(
 	return diagnostic;
 }
 
-// function createDiaAtSymbolNeedsQuotes(
-// 	doc: TextDocument,
-// 	lineString: string, 
-//     lineIndex: number,
-// ): Diagnostic { 
-// 	const diagnostic: Diagnostic = {
-// 		severity: DiagnosticSeverity.Error,
-// 		range: Range.create(lineIndex, 0, lineIndex, lineString.length),
-// 		message: 'Must include quotation marks around author value if @ is present',
-// 		source: 'umn-sigma-lsp',
-// 		code: "sigma_AuthorAtSymbol"
-// 	};
-// 	return diagnostic;
-// }
-
 
 function createDiaLowercaseTag(
     doc: TextDocument,
@@ -291,30 +277,23 @@ function createDiaTitleTooLong(
     doc: TextDocument,
 	lineString: string,
     lineIndex: number,
+	lengthThreshold: number // 50 (recommended max), or 256 (absolute max)
 ):  Diagnostic {
     // create range that represents, where in the document the word is
+	let message, severity;
+	if (lengthThreshold === 50){
+		severity = DiagnosticSeverity.Information;
+		message = "Title less than 50 characters is recommended (max length is 256)";
+	} else { // lengthThreshold === 256
+		severity = DiagnosticSeverity.Error;
+		message = "Title must be 256 characters or less";
+	}
 	const diagnostic: Diagnostic = {
-		severity: DiagnosticSeverity.Warning,
+		severity: severity,
 		range: Range.create(lineIndex,0,lineIndex,lineString.length),
-		message: "Title is too long. Please consider shortening it",
+		message: message,
 		source: 'umn-sigma-lsp',
 		code: "sigma_TitleTooLong"
-	};
-    return diagnostic;
-}
-
-function createDiaDescTooShort(
-    doc: TextDocument,
-	lineString: string,
-    lineIndex: number,
-): Diagnostic {
-    // create range that represents, where in the document the word is
-	const diagnostic: Diagnostic = {
-		severity: DiagnosticSeverity.Warning,
-		range: Range.create(lineIndex,0,lineIndex,lineString.length),
-		message: "Description is too short. Please elaborate",
-		source: 'umn-sigma-lsp',
-		code: "sigma_DescTooShort"
 	};
     return diagnostic;
 }
