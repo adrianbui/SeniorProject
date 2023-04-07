@@ -12,6 +12,9 @@ import {
 import { error } from 'console';
 import { getTags } from 'yaml/dist/schema/tags';
 import {requiredTypes} from './sigmaRequiredTypes';
+import { fieldOrder } from './sigmaFieldOrder';
+import { subFieldOrderLogSource } from './sigmaFieldOrder';
+
 
 // Code adapted from https://github.com/humpalum/vscode-sigma/blob/main/src/diagnostics.ts
 
@@ -21,6 +24,8 @@ export function handleDiagnostics(doc: TextDocument, parsedToJS: Record<string, 
 
 	
 	diagnostics.push(...checkRequiredFields(doc,lines,parsedToJS));
+
+	diagnostics.push(...checkForWrongKeys(doc, lines, parsedToJS));
 	//diagnostics.push(...checkInvalidFields(doc,lines,parsedToJS));
 
 	// flatten parsedToJS so that nested keys exist at the top level
@@ -60,12 +65,12 @@ export function handleDiagnostics(doc: TextDocument, parsedToJS: Record<string, 
 			} else {
 				diagnostics.push(createDiaTitleTooLong(doc, line, i, 50));
 			}
-			
 		}
 		const whitespaceMatch = line.match(/[\s]+$/);
 		if (whitespaceMatch) {
 			diagnostics.push(createDiaTrailingWhitespace(doc, line, i, whitespaceMatch[0].length));
 		}
+
 	}
 	return diagnostics;
 }
@@ -125,6 +130,61 @@ function flattenObject(parsedToJS:Record<string, unknown>){
 	}
 	return flatParsedToJS;
 }
+
+/**
+ * Checks all the sigma fields order and returns an array of keys that are in the incorrect order. 
+ * @param {Record<string, unknown>} parsedToJS javascript object with parsed contents of yaml file
+ * @return {wrongKeys} array of keys that were in the incorrect order. 
+ */
+function checkFieldOrder(parsedToJS:Record<string, unknown>){
+	const ordering:any = {}; // map for efficient lookup of sortIndex
+    const sortOrder = fieldOrder;
+	const keysArr = Object.keys(parsedToJS);
+	for (let i=0; i<sortOrder.length; i++){
+		ordering[sortOrder[i]] = i;
+	}
+	const sortedKeysArr = keysArr.sort(function(a, b) {
+		return (ordering[a] - ordering[b]);
+	});
+	const wrongKeys = []; 
+	for(let i=0; i<keysArr.length; i++){ 
+		const key = keysArr[i];
+		if(sortedKeysArr[i]!=key){
+			wrongKeys.push(key);
+		}
+	}
+	return wrongKeys;
+}
+
+/**
+ * Checks whether the keys are in incorrect order and pushes a diagnostic
+ * @param {TextDocument} doc has the contents of the current file
+ * @param {Array<string>} docLines each line of the file as a string
+ * @param {Record<string, unknown>} parsedToJS javascript object with parsed contents of yaml file
+ * @return {tempDiagnostics} array of diagnostics to be displayed
+ */
+function checkForWrongKeys(doc: TextDocument, docLines: Array<string>,parsedToJS:Record<string,unknown>){
+	const diagnostics: Diagnostic[] = [];
+	const wrongKeysArr = checkFieldOrder(parsedToJS);
+	let count = 0; // for looping through wrongKeysArr
+	let currentKey = wrongKeysArr[count];
+	let regex = new RegExp(`^\\s*${currentKey}:`);
+	for(let i=0; i<docLines.length; i++){
+		const regexMatchIndex = docLines[i].search(regex); // first character of the matched key
+		if(regexMatchIndex > 0){
+			const lineNumber = i;
+			diagnostics.push(createDiaFieldOutOfOrder(doc,currentKey,lineNumber,regexMatchIndex));
+			count++;
+			currentKey = wrongKeysArr[count];
+			regex = new RegExp(`^\\s*${currentKey}:`);
+		}
+	}
+	return diagnostics;
+}
+	
+
+
+
 
 
 
@@ -297,6 +357,32 @@ function createDiaTitleTooLong(
 	};
     return diagnostic;
 }
+/**
+ * Checks whether a sigma value is of the correct type for that key
+ * @param {TextDocument} doc has the contents of the current file
+ * @param {string} keyString incorrect key that is out of order
+ * @param {string} lineIndex number line is on
+ * @param {string} regexMatchIndex line the key starts on
+ * @return {tempDiagnostics} array of diagnostics to be displayed
+ */
+function createDiaFieldOutOfOrder(
+    doc: TextDocument,
+	keyString: string,
+    lineIndex: number,
+	regexMatchIndex: number
+):  Diagnostic {
+    // create range that represents, where in the document the word is
+	let message, severity;
+	
+	const diagnostic: Diagnostic = {
+		severity: severity,
+		range: Range.create(lineIndex,0,lineIndex,keyString.length),
+		message: "This field is not in the correct order, Please refer to: https://github.com/SigmaHQ/sigma-specification/blob/main/Sigma_specification.md",
+		source: 'umn-sigma-lsp',
+		code: "sigma_TitleTooLong"
+	};
+    return diagnostic;
+}
 
 /**
  * Checks whether a sigma value is of the correct type for that key
@@ -334,6 +420,8 @@ function checkType(
 	} else {
 		return [tempDiagnostics,lastCheckedLine];
 	}
+
+
 	
 	if (wrongType){
 		// get the line that sigmaKey is on
