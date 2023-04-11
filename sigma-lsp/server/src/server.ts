@@ -15,20 +15,18 @@ import {
 	TextDocumentPositionParams,
 	TextDocumentSyncKind,
 	InitializeResult,
-	MarkupKind,
-	Hover,
-	Range
+	Hover
 } from 'vscode-languageserver/node';
 
 import * as YAML from "yaml";
 
 import {handleDiagnostics} from './diagnostics';
+import {handleHover} from './hover';
 
 import {
 	TextDocument
 } from 'vscode-languageserver-textdocument';
 import { error } from 'console';
-
 
 // Create a connection for the server, using Node's IPC as a transport.
 // Also include all preview / proposed LSP features.
@@ -146,6 +144,8 @@ documents.onDidChangeContent(change => {
 	validateTextDocument(change.document);
 });
 
+// =================================================================
+// DIAGNOSTICS FUNCTIONALITY
 async function validateTextDocument(textDocument: TextDocument): Promise<void> {
 	// In this simple example we get the settings for every validate run.
 	const settings = await getDocumentSettings(textDocument.uri);
@@ -249,58 +249,14 @@ connection.onDidChangeWatchedFiles(_change => {
 	connection.console.log('We received an file change event');
 });
 
+// =================================================================
+// HOVER FUNCTIONALITY
 connection.onHover((textDocumentPosition: TextDocumentPositionParams): Hover | null => {
-    const document = documents.get(textDocumentPosition.textDocument.uri);
-    if (!document) {
-        return null;
-    }
-
-    const { line, character } = textDocumentPosition.position;
-    
-	const lineText = document.getText({
-        start: { line, character: 0 },
-        end: { line: line + 1, character: 0 }
-    });
-
-    const wordRange = getWordRange(lineText, character);
-    const word = lineText.substring(wordRange.start.character, wordRange.end.character);
-
-	let hoverMessage;
-	if (word.length === 0) {
-		hoverMessage = "No word found";
-	} else {
-		hoverMessage = `We are hoving over this word: '${word}'.`;
-	}
-    
-	const hover: Hover = {
-		contents: {
-			kind: MarkupKind.Markdown,
-			value: hoverMessage
-		},
-		range: wordRange
-    };
-	return hover;
+	return handleHover(textDocumentPosition, documents); 
 });
 
-function getWordRange(lineText: string, position: number): Range {
-    const regex = /\w+/g;
-    let match: RegExpExecArray | null;
-
-    while (match = regex.exec(lineText)) {
-        if (position >= match.index && position < match.index + match[0].length) {
-            return {
-                start: { line: 0, character: match.index },
-                end: { line: 0, character: match.index + match[0].length }
-            };
-        }
-    }
-
-    return {
-        start: { line: 0, character: 0 },
-        end: { line: 0, character: 0 }
-    };
-}
-
+// =================================================================
+// COMPLETION FUNCTIONALITY
 // This handler provides the initial list of the completion items.
 connection.onCompletion(
 	(_textDocumentPosition: TextDocumentPositionParams): CompletionItem[] => {
