@@ -15,20 +15,18 @@ import {
 	TextDocumentPositionParams,
 	TextDocumentSyncKind,
 	InitializeResult,
-	Range
+	Hover
 } from 'vscode-languageserver/node';
 
 import * as YAML from "yaml";
 
 import {handleDiagnostics} from './diagnostics';
+import {handleHover} from './hover';
 import {handleCompletion} from './completion';
 
 import {
 	TextDocument
 } from 'vscode-languageserver-textdocument';
-import { error } from 'console';
-import { connect } from 'http2';
-
 
 // Create a connection for the server, using Node's IPC as a transport.
 // Also include all preview / proposed LSP features.
@@ -65,7 +63,8 @@ connection.onInitialize((params: InitializeParams) => {
 			// Tell the client that this server supports code completion.
 			completionProvider: {
 				resolveProvider: true
-			}
+			},
+			hoverProvider: true
 		}
 	};
 	if (hasWorkspaceFolderCapability) {
@@ -145,6 +144,8 @@ documents.onDidChangeContent(change => {
 	validateTextDocument(change.document);
 });
 
+// =================================================================
+// DIAGNOSTICS FUNCTIONALITY
 async function validateTextDocument(textDocument: TextDocument): Promise<void> {
 	// In this simple example we get the settings for every validate run.
 	const settings = await getDocumentSettings(textDocument.uri);
@@ -248,17 +249,41 @@ connection.onDidChangeWatchedFiles(_change => {
 	connection.console.log('We received an file change event');
 });
 
+// =================================================================
+// HOVER FUNCTIONALITY
+connection.onHover((textDocumentPosition: TextDocumentPositionParams): Hover | null => {
+	return handleHover(textDocumentPosition, documents); 
+});
+
+// =================================================================
+// COMPLETION FUNCTIONALITY
+// This handler provides the initial list of the completion items.
+connection.onCompletion(
+	(_textDocumentPosition: TextDocumentPositionParams): CompletionItem[] => {
+		// The pass parameter contains the position of the text document in
+		// which code complete got requested. For the example we ignore this
+		// info and always provide the same completion items.
+	//console.log("onCompletion called");
+
+		return [
+			{
+				label: 'TypeScript',
+				kind: CompletionItemKind.Text,
+				data: 1
+			},
+			{
+				label: 'JavaScript',
+				kind: CompletionItemKind.Text,
+				data: 2
+			}
+		];
+	}
+);
 connection.onCompletion((textDocumentPosition: TextDocumentPositionParams): CompletionItem[] => {
 
 	return handleCompletion(documents,textDocumentPosition);
 
 });
-
-
-
-
-  
-
 
 // This handler resolves additional information for the item selected in
 // the completion list.
@@ -277,6 +302,7 @@ connection.onCompletionResolve(
 		return item;
 	}
 );
+
 
 // Make the text document manager listen on the connection
 // for open, change and close text document events

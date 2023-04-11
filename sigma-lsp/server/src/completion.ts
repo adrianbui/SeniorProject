@@ -1,17 +1,7 @@
 import {
-	createConnection,
 	TextDocuments,
-	Diagnostic,
-	DiagnosticSeverity,
-	ProposedFeatures,
-	InitializeParams,
-	DidChangeConfigurationNotification,
-	CompletionItem,
 	CompletionItemKind,
-	TextDocumentPositionParams,
-	TextDocumentSyncKind,
-	InitializeResult,
-	Range
+	TextDocumentPositionParams
 } from 'vscode-languageserver/node';
 
 import {

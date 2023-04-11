@@ -70,6 +70,7 @@ export function activate(context: ExtensionContext) {
 		// Register the server for plain text documents
 		documentSelector: [
 			{ scheme: 'file', language: 'plaintext' },
+			{ scheme: 'file', language: 'yaml' },
 			{ scheme: 'file', language: 'sigma' },
 		],
 		synchronize: {
