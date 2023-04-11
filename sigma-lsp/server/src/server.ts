@@ -22,11 +22,11 @@ import * as YAML from "yaml";
 
 import {handleDiagnostics} from './diagnostics';
 import {handleHover} from './hover';
+import {handleCompletion} from './completion';
 
 import {
 	TextDocument
 } from 'vscode-languageserver-textdocument';
-import { error } from 'console';
 
 // Create a connection for the server, using Node's IPC as a transport.
 // Also include all preview / proposed LSP features.
@@ -279,17 +279,25 @@ connection.onCompletion(
 		];
 	}
 );
+connection.onCompletion((textDocumentPosition: TextDocumentPositionParams): CompletionItem[] => {
+
+	return handleCompletion(documents,textDocumentPosition);
+
+});
 
 // This handler resolves additional information for the item selected in
 // the completion list.
 connection.onCompletionResolve(
 	(item: CompletionItem): CompletionItem => {
 		if (item.data === 1) {
-			item.detail = 'TypeScript details';
-			item.documentation = 'TypeScript documentation';
+			item.detail = 'Sigma Attribute [required]';
+			item.documentation = 'A brief title for the rule that should contain what the rules is supposed to detect (max. 256 characters)';
+			return item;
+			
 		} else if (item.data === 2) {
-			item.detail = 'JavaScript details';
-			item.documentation = 'JavaScript documentation';
+			item.detail = 'Sigma Attribute [optional]';
+			item.documentation = 'A short description of the rule and the malicious activity that can be detected (max. 65,535 characters)';
+			return item;
 		}
 		return item;
 	}
