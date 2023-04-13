@@ -13,7 +13,9 @@ import {
 	InitializeResult,
 	Range,
     TextEdit,
-    Position
+    Position,
+    integer,
+    InsertTextFormat
 } from 'vscode-languageserver/node';
 
 import {
@@ -30,11 +32,10 @@ export function handleCompletion(documents: TextDocuments<TextDocument>, textDoc
             start: { line: lineNumber, character: 0 },
             end: { line: lineNumber, character: Number.MAX_VALUE }
         });
-        // const isCurrentLineLogSource = lineText?.trim().startsWith('logsource');
 
-        
     
         // Get a list of words that have already been written in the current text document
+        let logNum= 0
         const existingWords = new Set<string>();
         for (let i = 0; i < document!.lineCount; i++) {
             const line = document!.getText({
@@ -45,11 +46,16 @@ export function handleCompletion(documents: TextDocuments<TextDocument>, textDoc
             //TODO - stop adding words to list after colon, i think this is necessary
             // const colonIndex = line.indexOf(':');  
             // const truncatedLine = colonIndex !== -1 ? line.slice(0, colonIndex) : line.trim(); //stop checking words at colon
-
+            
             const words = line.trim().split(/\s+|:/); //split on whitespace and colons
             for (const word of words) {
 				existingWords.add(word);
 			}
+            if (line.trim().startsWith('logsource')) {
+                logNum=i;
+            }
+            
+        
         }
 
         const filteredItems = [
@@ -63,25 +69,35 @@ export function handleCompletion(documents: TextDocuments<TextDocument>, textDoc
                 label: 'title',
                 kind: CompletionItemKind.Text,
                 data: 2,
-                insertText:'title: '
+                insertText:'title:'
             },
             {
                 label: 'description',
                 kind: CompletionItemKind.Text,
                 data: 3,
-                insertText:'description: '
+                insertText:'description:'
+            },{
+                label: 'id',
+                kind: CompletionItemKind.Text,
+                data: 4,
+                insertText:'id:'
+            },{
+                label: 'author',
+                kind: CompletionItemKind.Text,
+                data: 5,
+                insertText:'author:'
             },
             {
                 label: 'logsource',
                 kind: CompletionItemKind.Text,
-                data: 3,
+                data: 6,
                 insertText:'logsource:\n\t'
             },
             {
                 label: 'detection',
                 kind: CompletionItemKind.Text,
                 data: 9,
-                insertText: 'detection:\n  '
+                insertText: 'detection:\n'
             },
             {
                 label: 'falsepositives',
@@ -93,7 +109,7 @@ export function handleCompletion(documents: TextDocuments<TextDocument>, textDoc
                 label: 'level',
                 kind: CompletionItemKind.Text,
                 data: 11,
-                insertText: 'level: '
+                insertText: 'level:'
             },
             {
                 label: 'tags',
@@ -105,31 +121,31 @@ export function handleCompletion(documents: TextDocuments<TextDocument>, textDoc
                 label: 'status',
                 kind: CompletionItemKind.Text,
                 data: 13,
-                insertText: 'status: '
+                insertText: 'status:'
             },
             {
                 label: 'author',
                 kind: CompletionItemKind.Text,
                 data: 14,
-                insertText: 'author: '
+                insertText: 'author:'
             },
             {
                 label: 'date',
                 kind: CompletionItemKind.Text,
                 data: 15,
-                insertText: 'date: '
+                insertText: 'date:'
             },
             {
                 label: 'license',
                 kind: CompletionItemKind.Text,
                 data: 16,
-                insertText: 'license: '
+                insertText: 'license:'
             },
             {
                 label: 'updated',
                 kind: CompletionItemKind.Text,
                 data: 17,
-                insertText: 'updated: '
+                insertText: 'updated:'
             },
             {
                 label: 'references',
@@ -147,13 +163,13 @@ export function handleCompletion(documents: TextDocuments<TextDocument>, textDoc
                 label: 'condition',
                 kind: CompletionItemKind.Text,
                 data: 20,
-                insertText: 'condition: '
+                insertText: 'condition:'
             },
             {
                 label: 'aggregation',
                 kind: CompletionItemKind.Text,
                 data: 21,
-                insertText: 'aggregation: '
+                insertText: 'aggregation:'
             }
             
             
@@ -185,6 +201,60 @@ export function handleCompletion(documents: TextDocuments<TextDocument>, textDoc
                     "aggregation: "
                 ].join('\n')
             });
+        }
+
+        // checks the "logsource" line number
+        if ((lineNumber-logNum ==1 || lineNumber - logNum == 2) && logNum!=0) {
+            filteredItems.push(
+                {
+                    label: 'category',
+                    kind: CompletionItemKind.Text,
+                    data: 7,
+                    insertText: 'category: '
+                },
+                {
+                    label: 'product',
+                    kind: CompletionItemKind.Text,
+                    data: 8,
+                    insertText: 'product: ',
+                    
+                }
+            );
+
+        }
+        if (lineText?.trim().startsWith('product: ')) {
+            filteredItems.push(
+                {
+                    label: 'windows',
+                    kind: CompletionItemKind.Text,
+                    data: 100,
+                    insertText: 'windows'
+                },
+                {
+                    label: 'linux',
+                    kind: CompletionItemKind.Text,
+                    data: 101,
+                    insertText: 'linux'
+                },
+                {
+                    label: 'azure',
+                    kind: CompletionItemKind.Text,
+                    data: 102,
+                    insertText: 'azure'
+                },
+                {
+                    label: 'macos',
+                    kind: CompletionItemKind.Text,
+                    data: 103,
+                    insertText: 'macos'
+                },
+                {
+                    label: 'aws',
+                    kind: CompletionItemKind.Text,
+                    data: 104,
+                    insertText: 'aws'
+                }
+            );
         }
         
 
