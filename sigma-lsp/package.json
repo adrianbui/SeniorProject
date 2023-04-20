@@ -73,7 +73,6 @@
 		"test:watch": "jest --watch"
 	},
 	"devDependencies": {
-		"@types/jest": "^29.5.0",
 		"@types/mocha": "^9.1.0",
 		"@types/node": "^16.11.7",
 		"@typescript-eslint/eslint-plugin": "^5.42.0",
