@@ -20,7 +20,15 @@ export function handleCompletion(documents: TextDocuments<TextDocument>, textDoc
             end: { line: lineNumber, character: Number.MAX_VALUE }
         });
 
-    
+
+        if(lineText?.indexOf(':') !== -1){ //if colon exists in line make no suggestion
+            return [{
+                label: ' | ', // placeholder that will not be removed to prevent vs code from auto filling words. 
+                kind: CompletionItemKind.Text,
+                data: 1,
+                insertText: '', 
+            }];
+        }
         // Get a list of words that have already been written in the current text document
         let logNum= 0;
         const existingWords = new Set<string>();
@@ -29,15 +37,12 @@ export function handleCompletion(documents: TextDocuments<TextDocument>, textDoc
                 start: { line: i, character: 0 },
                 end: { line: i, character: Number.MAX_VALUE }
             });
-
-            //TODO - stop adding words to list after colon, i think this is necessary
-            // const colonIndex = line.indexOf(':');  
-            // const truncatedLine = colonIndex !== -1 ? line.slice(0, colonIndex) : line.trim(); //stop checking words at colon
             
+            //only add first word to the line 
             const words = line.trim().split(/\s+|:/); //split on whitespace and colons
-            for (const word of words) {
-				existingWords.add(word);
-			}
+
+			existingWords.add(words[0]);
+
             if (line.trim().startsWith('logsource')) {
                 logNum=i;
             }
@@ -267,6 +272,6 @@ export function handleCompletionResolve(item: CompletionItem){
     }
 
     //TODO - more resolve items
-    
+
     return item;     
 }
