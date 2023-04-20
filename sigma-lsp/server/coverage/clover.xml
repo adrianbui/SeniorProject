@@ -1,6 +1,48 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<coverage generated="1681184699284" clover="3.2.0">
-  <project timestamp="1681184699285" name="All files">
-    <metrics statements="0" coveredstatements="0" conditionals="0" coveredconditionals="0" methods="0" coveredmethods="0" elements="0" coveredelements="0" complexity="0" loc="0" ncloc="0" packages="0" files="0" classes="0"/>
+<coverage generated="1682002616081" clover="3.2.0">
+  <project timestamp="1682002616081" name="All files">
+    <metrics statements="39" coveredstatements="33" conditionals="9" coveredconditionals="5" methods="7" coveredmethods="7" elements="55" coveredelements="45" complexity="0" loc="39" ncloc="39" packages="1" files="1" classes="1"/>
+    <file name="hover.ts" path="/Users/adrianbui/Downloads/4950/github_repo/SeniorProject/sigma-lsp/server/src/hover.ts">
+      <metrics statements="39" coveredstatements="33" conditionals="9" coveredconditionals="5" methods="7" coveredmethods="7"/>
+      <line num="1" count="1" type="stmt"/>
+      <line num="14" count="1" type="stmt"/>
+      <line num="31" count="1" type="stmt"/>
+      <line num="32" count="2" type="stmt"/>
+      <line num="34" count="2" type="cond" truecount="0" falsecount="1"/>
+      <line num="35" count="0" type="stmt"/>
+      <line num="38" count="2" type="stmt"/>
+      <line num="41" count="2" type="stmt"/>
+      <line num="43" count="2" type="stmt"/>
+      <line num="46" count="2" type="stmt"/>
+      <line num="48" count="2" type="stmt"/>
+      <line num="51" count="2" type="stmt"/>
+      <line num="59" count="2" type="stmt"/>
+      <line num="63" count="2" type="stmt"/>
+      <line num="71" count="2" type="stmt"/>
+      <line num="73" count="2" type="cond" truecount="1" falsecount="1"/>
+      <line num="74" count="2" type="stmt"/>
+      <line num="75" count="2" type="stmt"/>
+      <line num="78" count="0" type="stmt"/>
+      <line num="84" count="2" type="stmt"/>
+      <line num="86" count="2" type="stmt"/>
+      <line num="88" count="2" type="stmt"/>
+      <line num="89" count="2" type="stmt"/>
+      <line num="90" count="2" type="stmt"/>
+      <line num="91" count="2" type="cond" truecount="3" falsecount="0"/>
+      <line num="92" count="2" type="stmt"/>
+      <line num="95" count="0" type="stmt"/>
+      <line num="98" count="0" type="stmt"/>
+      <line num="102" count="2" type="stmt"/>
+      <line num="109" count="2" type="cond" truecount="0" falsecount="1"/>
+      <line num="110" count="0" type="stmt"/>
+      <line num="113" count="2" type="cond" truecount="1" falsecount="0"/>
+      <line num="114" count="1" type="stmt"/>
+      <line num="115" count="1" type="stmt"/>
+      <line num="119" count="1" type="stmt"/>
+      <line num="123" count="1" type="cond" truecount="0" falsecount="1"/>
+      <line num="124" count="0" type="stmt"/>
+      <line num="127" count="1" type="stmt"/>
+      <line num="133" count="1" type="stmt"/>
+    </file>
   </project>
 </coverage>
