@@ -4,18 +4,13 @@ import {
 	Range
 } from 'vscode-languageserver/node';
 
-import * as YAML from "yaml";
-
 import {
 	TextDocument
 } from 'vscode-languageserver-textdocument';
-import { error } from 'console';
-import { getTags } from 'yaml/dist/schema/tags';
 import {requiredTypes} from './sigmaRequiredTypes';
 import { fieldOrder, subFieldOrderLogSource } from './sigmaFieldOrder';
 
-
-// Code adapted from https://github.com/humpalum/vscode-sigma/blob/main/src/diagnostics.ts
+// Some code adapted from https://github.com/humpalum/vscode-sigma/blob/main/src/diagnostics.ts
 
 export function handleDiagnostics(doc: TextDocument, parsedToJS: Record<string, unknown>) {
     const lines = doc.getText().split('\n');
@@ -23,30 +18,20 @@ export function handleDiagnostics(doc: TextDocument, parsedToJS: Record<string, 
 
 	
 	diagnostics.push(...checkRequiredFields(doc,lines,parsedToJS));
-
 	diagnostics.push(...checkForWrongKeys(doc, lines, parsedToJS));
-	//diagnostics.push(...checkInvalidFields(doc,lines,parsedToJS));
-
-	// flatten parsedToJS so that nested keys exist at the top level
-	// this helps loop through all keys in checkType
-	const flatParsedToJS = flattenObject(parsedToJS);
-	//console.log('flattened parsedToJS', flatParsedToJS);
 	// call checkType on all keys including nested keys
-	diagnostics.push(...checkTypeOfAllKeys(flatParsedToJS, doc,lines));
+	diagnostics.push(...checkTypeOfAllKeys(parsedToJS, doc,lines));
 
 	if("tags" in parsedToJS) {
-		//console.log('tags attribute exists');
 		const tempArr = checkLowercaseTags(doc, lines, parsedToJS);
-		//const tempArr2 = checkType("array", "tags", doc, lines, parsedToJS);
 		diagnostics.push(...tempArr);
-		//diagnostics.push(...tempArr2);
 	}
 
+	// This part adapted from https://github.com/humpalum/vscode-sigma/blob/main/src/diagnostics.ts
     for (let i = 0; i < doc.lineCount; i++) {
         const line = lines[i];
-        //console.log(doc.getText(Range.create(i,0,i,line.length)));
 		if (line.includes("contains|")) {
-			if (!line.includes("contains|all:")) {
+			if (!line.includes("contains|all:")) { // only case where contains is permitted?
 				diagnostics.push(createDiaContainsInMiddle(doc, line, i));
 			}
 		}
@@ -77,13 +62,16 @@ export function handleDiagnostics(doc: TextDocument, parsedToJS: Record<string, 
 /**
  * Checks that the type of each key matches the required type as in sigmaRequiredTypes.ts
  * 
- * @param {Record<string, unknown>} flatParsedToJS flattened parsedToJs (parsed yaml)
+ * @param {Record<string, unknown>} parsedToJS javascript object with parsed contents of yaml file
  * @param {TextDocument} doc has the contents of the current file
  * @param {Array<string>} docLines each line of the file as a string
- * @return {flatParsedToJS} flattened version of the object
+ * @return {diagnostics} array of diagnostics to be displayed
  */
-function checkTypeOfAllKeys(flatParsedToJS: Record<string, unknown>, doc: TextDocument, docLines: Array<string>){
+function checkTypeOfAllKeys(parsedToJS: Record<string, unknown>, doc: TextDocument, docLines: Array<string>){
 	const diagnostics: Diagnostic[] = [];
+	// flatten parsedToJS so that nested keys exist at the top level
+	// this helps loop through all keys in checkType
+	const flatParsedToJS = flattenObject(parsedToJS);
 	const keysArr = Object.keys(flatParsedToJS);
 	let lastCheckedLine = 0; // this keeps track of how far we've iterated through the file
 	// checks that the type of each value matches the required type specified in sigmaRequiredTypes.js
@@ -136,9 +124,10 @@ function flattenObject(parsedToJS:Record<string, unknown>){
  * @return {wrongKeys} array of keys that were in the incorrect order. 
  */
 function checkFieldOrder(parsedToJS:Record<string, unknown>){
-	const ordering:any = {}; // map for efficient lookup of sortIndex
+	const ordering:any = {}; // map for efficient lookup of sort index
     const sortOrder = fieldOrder; //fieldOrder is the correct order according to sigma docs
-	//console.log("sortOrder: ", sortOrder);
+	// TODO add sorting for sub fields of logsource
+
 	const keysArr = Object.keys(parsedToJS);
 	// create a copy of keysArr to avoid mutating when sorting
 	const sortedKeysArr = [...keysArr]; // this array will be sorted, representing the correct ordering
@@ -149,13 +138,13 @@ function checkFieldOrder(parsedToJS:Record<string, unknown>){
 	sortedKeysArr.sort(function(a, b) {
 		return (ordering[a] - ordering[b]);
 	});
-	console.log("keysArr: ", keysArr);
-	console.log("sortedKeysArr: ", sortedKeysArr);
+	//console.log("keysArr: ", keysArr);
+	//console.log("sortedKeysArr: ", sortedKeysArr);
 	const wrongKeys = []; 
 	for(let i=0; i<keysArr.length; i++){ 
 		const actualKey = keysArr[i];
 		const correctKey = sortedKeysArr[i];
-		console.log(`actual key: ${actualKey}, correct key: ${correctKey}`);
+		//console.log(`actual key: ${actualKey}, correct key: ${correctKey}`);
 		if(actualKey != correctKey){
 			wrongKeys.push(actualKey);
 		}
@@ -168,7 +157,7 @@ function checkFieldOrder(parsedToJS:Record<string, unknown>){
  * @param {TextDocument} doc has the contents of the current file
  * @param {Array<string>} docLines each line of the file as a string
  * @param {Record<string, unknown>} parsedToJS javascript object with parsed contents of yaml file
- * @return {tempDiagnostics} array of diagnostics to be displayed
+ * @return {diagnostics} array of diagnostics to be displayed
  */
 function checkForWrongKeys(doc: TextDocument, docLines: Array<string>,parsedToJS:Record<string,unknown>){
 	const diagnostics: Diagnostic[] = [];
@@ -177,25 +166,21 @@ function checkForWrongKeys(doc: TextDocument, docLines: Array<string>,parsedToJS
 	if (numWrongKeys === 0) { // no fields are in the wrong order
 		return diagnostics;
 	}
-	console.log("wrongKeysArr: ", wrongKeysArr);
+	// console.log("wrongKeysArr: ", wrongKeysArr);
 	let count = 0; // for looping through wrongKeysArr
 	let currentKey = wrongKeysArr[count];
 	let regex = new RegExp(`^\\s*${currentKey}:`);
 	for(let i=0; i<docLines.length; i++){
-		console.log("currentKey: ", currentKey);
-		console.log("regex: ", regex);
 		const regexMatchIndex = docLines[i].search(regex); // first character of the matched key
-		console.log("regexMatchIndex", regexMatchIndex);
 		if(regexMatchIndex >= 0){
-			console.log("found regex match");
 			const lineNumber = i;
 			diagnostics.push(createDiaFieldOutOfOrder(doc,currentKey,lineNumber,regexMatchIndex));
 			
 			if (count >= numWrongKeys - 1){   // we've found all the incorrect keys
 				return diagnostics;
 			} else { // look for the next incorrect key
-				console.log("current count:", count);
-				console.log("numWrongKeys :", numWrongKeys);
+				// console.log("current count:", count);
+				// console.log("numWrongKeys :", numWrongKeys);
 				count++;
 				currentKey = wrongKeysArr[count];
 				regex = new RegExp(`^\\s*${currentKey}:`);
@@ -206,208 +191,6 @@ function checkForWrongKeys(doc: TextDocument, docLines: Array<string>,parsedToJS
 	return diagnostics;
 }
 	
-
-
-
-
-
-
-// Helper Functions to Create Diagnostics
-
-function createDiaMissingReqField(
-	doc: TextDocument,
-	lineString: string, 
-    lineIndex: number,
-	missingTags: string
-): Diagnostic { 
-	// TODO range should include the next line(s) if the author value is a list
-	if (lineString == undefined){
-		lineString = '';
-	}
-	const diagnostic: Diagnostic = {
-		severity: DiagnosticSeverity.Error,
-		range: Range.create(lineIndex, 0, lineIndex, lineString.length),
-		message: `Sigma File is missing required field(s): ${missingTags}`,
-		source: 'umn-sigma-lsp',
-		code: "sigma_MissingReqField"
-	};
-	return diagnostic;
-}
-
-// this diagnostic could be on multiple lines
-function createDiaIncorrectType(
-    doc: TextDocument,
-	lastLineString: string, // the string of the last line
-    lineIndexStart: number,
-	lineIndexEnd: number,
-	sigmaKey: string,
-	requiredValue: string
-): Diagnostic { 
-	// TODO range should include the next line(s) if the author value is a list
-	const diagnostic: Diagnostic = {
-		severity: DiagnosticSeverity.Error,
-		range: Range.create(lineIndexStart, 0, lineIndexEnd, lastLineString.length),
-		message: `Value of key ${sigmaKey} must be of type ${requiredValue}`,
-		source: 'umn-sigma-lsp',
-		code: "sigma_IncorrectType"
-	};
-	return diagnostic;
-}
-
-
-// this diagnostic could be on multiple lines
-// lineStringEnd is the string of the last line
-function createDiaAuthorNotString(
-    doc: TextDocument,
-	lastLineString: string, 
-    lineIndexStart: number,
-	lineIndexEnd: number
-): Diagnostic { 
-	// TODO range should include the next line(s) if the author value is a list
-	const diagnostic: Diagnostic = {
-		severity: DiagnosticSeverity.Error,
-		range: Range.create(lineIndexStart, 0, lineIndexEnd, lastLineString.length),
-		message: 'Author value must be a string',
-		source: 'umn-sigma-lsp',
-		code: "sigma_AuthorNotString"
-	};
-	return diagnostic;
-}
-
-
-function createDiaLowercaseTag(
-    doc: TextDocument,
-	lineString: string, 
-    lineIndex: number,
-	targetString: string
-): Diagnostic {
-    // find where in the parsed yaml there is uppercase 
-    const index = lineString.indexOf(targetString);
-    const indexLength = targetString.length;
-
-	const diagnostic: Diagnostic = {
-		severity: DiagnosticSeverity.Warning,
-		range: Range.create(lineIndex, index, lineIndex, index + indexLength),
-		message: 'Tags should be lowercase only',
-		source: 'umn-sigma-lsp',
-		code: "sigma_LowercaseTag"
-	};
-	return diagnostic;
-}
-
-function createDiaSingleAll(
-    doc: TextDocument,
-	lineString: string,
-    lineIndex: number,
-): Diagnostic {
-    // find where in the line the 'contains' is mentioned
-    const index = lineString.indexOf("|all");
-    const indexLength = "|all".length;
-
-	const diagnostic: Diagnostic = {
-		severity: DiagnosticSeverity.Warning,
-		range: Range.create(lineIndex, index, lineIndex, index + indexLength),
-		message: 'Modifier: "|all" may not be a single entry',
-		source: 'umn-sigma-lsp',
-		code: "sigma_AllSingle"
-	};
-	return diagnostic;
-}
-
-function createDiaContainsInMiddle(
-    doc: TextDocument,
-	lineString: string,
-    lineIndex: number,
-): Diagnostic {
-    // find where in the line the 'contains' is mentioned
-    const index = lineString.indexOf("contains|");
-    let indexLength = "contains|".length;
-    let regexMatch = lineString.match("contains.+:");
-    if (regexMatch) {
-        indexLength = regexMatch[0].length;
-    } else {
-        regexMatch = lineString.match("contains.+$");
-        if (regexMatch) {
-            indexLength = regexMatch[0].length;
-        }
-    }
-	const diagnostic: Diagnostic = {
-		severity: DiagnosticSeverity.Warning,
-		range: Range.create(lineIndex, index, lineIndex, index + indexLength),
-		message: "Contains should only be at the end of modifiers",
-		source: 'umn-sigma-lsp',
-		code: "sigma_containsMiddle"
-	};
-	return diagnostic;
-}
-
-function createDiaTrailingWhitespace(
-    doc: TextDocument,
-	lineString: string,
-    lineIndex: number,
-	matchLen: number
-): Diagnostic {
-    const diagnostic: Diagnostic = {
-		severity: DiagnosticSeverity.Information,
-		range: Range.create(lineIndex, lineString.length - matchLen,lineIndex,lineString.length),
-		message: "Trailing Whitespaces",
-		source: 'umn-sigma-lsp',
-		code: "sigma_trailingWhitespace"
-	};
-	return diagnostic;
-}
-
-function createDiaTitleTooLong(
-    doc: TextDocument,
-	lineString: string,
-    lineIndex: number,
-	lengthThreshold: number // 50 (recommended max), or 256 (absolute max)
-):  Diagnostic {
-    // create range that represents, where in the document the word is
-	let message, severity;
-	if (lengthThreshold === 50){
-		severity = DiagnosticSeverity.Information;
-		message = "Title less than 50 characters is recommended (max length is 256)";
-	} else { // lengthThreshold === 256
-		severity = DiagnosticSeverity.Error;
-		message = "Title must be 256 characters or less";
-	}
-	const diagnostic: Diagnostic = {
-		severity: severity,
-		range: Range.create(lineIndex,0,lineIndex,lineString.length),
-		message: message,
-		source: 'umn-sigma-lsp',
-		code: "sigma_TitleTooLong"
-	};
-    return diagnostic;
-}
-/**
- * Checks whether a sigma value is of the correct type for that key
- * @param {TextDocument} doc has the contents of the current file
- * @param {string} keyString incorrect key that is out of order
- * @param {string} lineIndex number line is on
- * @param {string} regexMatchIndex line the key starts on
- * @return {tempDiagnostics} array of diagnostics to be displayed
- */
-function createDiaFieldOutOfOrder(
-    doc: TextDocument,
-	keyString: string,
-    lineIndex: number,
-	regexMatchIndex: number
-):  Diagnostic {
-    // create range that represents, where in the document the word is
-	let message, severity;
-	
-	const diagnostic: Diagnostic = {
-		severity: severity,
-		range: Range.create(lineIndex,0,lineIndex,keyString.length),
-		message: "This field is not in the correct order, Please refer to: https://github.com/SigmaHQ/sigma-specification/blob/main/Sigma_specification.md",
-		source: 'umn-sigma-lsp',
-		code: "sigma_TitleTooLong"
-	};
-    return diagnostic;
-}
-
 /**
  * Checks whether a sigma value is of the correct type for that key
  * @param {string} requiredType correct type of the sigma value according to sigma docs
@@ -419,34 +202,29 @@ function createDiaFieldOutOfOrder(
  * @return {tempDiagnostics} array of diagnostics to be displayed
  */
 function checkType(
-		requiredType: string, 
-		sigmaKey: string, 
-		doc: TextDocument, 
-		docLines: Array<string>, 
-		parsedToJS: Record<string, unknown>,
-		lastCheckedLine: number
-	): [Diagnostic[], number]{
+	requiredType: string, 
+	sigmaKey: string, 
+	doc: TextDocument, 
+	docLines: Array<string>, 
+	parsedToJS: Record<string, unknown>,
+	lastCheckedLine: number
+): [Diagnostic[], number]{
 	const tempDiagnostics: Diagnostic[] = [];
 	const sigmaValue = parsedToJS[sigmaKey]; // parsed value for the current sigma key
 	//console.log(`called checkType on key ${sigmaKey}, required type is: ${requiredType}`);
 	let wrongType;
-	
+
 	if (requiredType === "string") {
 		wrongType = typeof sigmaValue !== 'string' && !(sigmaValue instanceof String);
-		//return checkString(sigmaKey, doc, docLines, parsedToJS);
 	} else if (requiredType === "array") {
 		wrongType = !Array.isArray(sigmaValue);
-		//return checkArray(sigmaKey, doc, docLines, parsedToJS);
 	} else if (requiredType === "object") {
 		// TODO implement this
-		// wrongType = !Array.isArray(sigmaValue);
-		// //return checkArray(sigmaKey, doc, docLines, parsedToJS);
+		// wrongType = not object
 	} else {
 		return [tempDiagnostics,lastCheckedLine];
 	}
 
-
-	
 	if (wrongType){
 		// get the line that sigmaKey is on
 		for (let i = lastCheckedLine; i < doc.lineCount; i++) {
@@ -456,12 +234,10 @@ function checkType(
 			//console.log('regex', regex);
 			if (lineString.match(regex)) {
 				// get the next key so that the current diagnostic will be on all lines until the next key
-				
 				const keys = Object.keys(parsedToJS);
 				const nextIndex = keys.indexOf(sigmaKey)+1;
 				const nextField = keys[nextIndex];
 				//console.log(`next field after ${sigmaKey}: `, nextField);
-
 				if (nextField){ // if sigmaKey isn't the last field
 					let j=i+1;
 					// find the line that nextField is on
@@ -472,8 +248,6 @@ function checkType(
 					while (!matchedRegex && j<doc.lineCount){
 						thisLine = docLines[j];
 						matchedRegex = thisLine.match(regex);
-						//console.log('matched Regex: ', matchedRegex);
-						//console.log('thisLine: ', thisLine);
 						j++;
 					}
 					if (!matchedRegex){ // just in case we didn't find nextField for some reason
@@ -494,127 +268,7 @@ function checkType(
 		}
 	}
 	return [tempDiagnostics, lastCheckedLine];
-	
 }
-
-// /**
-//  * Checks whether a sigma value is a string
-//  * @param {string} sigmaKey target sigma key, ex: "author"
-//  * @param {TextDocument} doc has the contents of the current file
-//  * @param {Array<string>} docLines each line of the file as a string
-//  * @param {Record<string, unknown>} parsedToJS javascript object with parsed contents of yaml file
-//  * @return {tempDiagnostics} array of diagnostics to be displayed
-//  */
-// function checkString(sigmaKey: string, doc: TextDocument, docLines: Array<string>, parsedToJS: Record<string, unknown>){
-// 	const tempDiagnostics: Diagnostic[] = [];
-// 	const sigmaValue = parsedToJS[sigmaKey]; // parsed value for the current sigma key
-// 	console.log(`called checkString on key ${sigmaKey}`);
-
-// 	if (typeof sigmaValue !== 'string' && !(sigmaValue instanceof String)){
-// 		// get the line that author is on
-// 		for (let i = 0; i < doc.lineCount; i++) {
-// 			const lineString = docLines[i];
-// 			const regex = new RegExp(`^${sigmaKey}:`); // to find line line that starts with sigmaKey
-// 			if (lineString.match(regex)) {
-// 				// get the next key so that the author diagnostic will be on all lines until the next key
-				
-// 				const keys = Object.keys(parsedToJS);
-// 				const nextIndex = keys.indexOf(sigmaKey)+1;
-// 				const nextField = keys[nextIndex];
-// 				console.log(`next field after ${sigmaKey}: `, nextField);
-
-// 				if (nextField){ // if sigmaKey isn't the last field
-// 					let j=i+1;
-// 					// find the line that nextField is on
-// 					// the diagnostic will range from sigmaKey's line to the line before nextField
-// 					const regex = new RegExp(`^${nextField}:`);
-// 					let lastCheckedLine, matchedRegex;
-// 					while (!matchedRegex && j<doc.lineCount){
-// 						lastCheckedLine = docLines[j];
-// 						matchedRegex = lastCheckedLine.match(regex);
-// 						//console.log('matched Regex: ', matchedRegex);
-// 						console.log('lastCheckedLine: ', lastCheckedLine);
-// 						j++;
-// 					}
-// 					if (!matchedRegex){ // just in case we didn't find nextField for some reason
-// 						tempDiagnostics.push(createDiaIncorrectType(doc,lineString,i,i,sigmaKey,"string"));
-// 					} else {
-// 						console.log('last line j was at: ', lastCheckedLine);
-// 						const idxBeforeNextField = j-2;
-// 						const lastString = docLines[idxBeforeNextField]; // the line before nextField is the last line in the diagnostic
-// 						console.log('last line in current diagnostic: ', lastString);
-// 						tempDiagnostics.push(createDiaIncorrectType(doc,lastString,i,idxBeforeNextField,sigmaKey,"string"));
-// 					}
-// 				} else { // if author is for some reason the last field
-// 					tempDiagnostics.push(createDiaIncorrectType(doc,lineString,i,i,sigmaKey,"string"));
-// 				}
-// 				return tempDiagnostics;
-// 			}
-// 		}
-// 	}
-// 	return tempDiagnostics;
-// }
-
-
-// // Still working on this one
-// /**
-//  * Checks whether a sigma value is a YAML array/sequence
-//  * @param {string} sigmaKey target sigma key, ex: "author"
-//  * @param {TextDocument} doc has the contents of the current file
-//  * @param {Array<string>} docLines each line of the file as a string
-//  * @param {Record<string, unknown>} parsedToJS javascript object with parsed contents of yaml file
-//  * @return {tempDiagnostics} array of diagnostics to be displayed
-//  */
-// function checkArray(sigmaKey: string, doc: TextDocument, docLines: Array<string>, parsedToJS: Record<string, unknown>){
-// 	const tempDiagnostics: Diagnostic[] = [];
-// 	const sigmaValue = parsedToJS[sigmaKey]; // parsed value for the current sigma key
-// 	console.log(`called checkArray on key ${sigmaKey}`);
-
-// 	if (!Array.isArray(sigmaValue)){
-// 		console.log(sigmaValue, "is not array");
-// 		// get the line that sigmaKey is on
-// 		for (let i = 0; i < doc.lineCount; i++) {
-// 			const lineString = docLines[i];
-// 			const regex = new RegExp(`^${sigmaKey}:`); // to find line line that starts with sigmaKey
-// 			if (lineString.match(regex)) {
-// 				// get the next key so that the author diagnostic will be on all lines until the next key
-				
-// 				const keys = Object.keys(parsedToJS);
-// 				const nextIndex = keys.indexOf(sigmaKey)+1;
-// 				const nextField = keys[nextIndex];
-// 				console.log(`next field after ${sigmaKey}: `, nextField);
-
-// 				if (nextField){ // if sigmaKey isn't the last field
-// 					let j=i+1;
-// 					// find the line that nextField is on
-// 					// the diagnostic will range from sigmaKey's line to the line before nextField
-// 					const regex = new RegExp(`^${nextField}:`);
-// 					let lastCheckedLine, matchedRegex;
-// 					while (!matchedRegex && j<doc.lineCount){
-// 						lastCheckedLine = docLines[j];
-// 						matchedRegex = lastCheckedLine.match(regex);
-// 						//console.log('matched Regex: ', matchedRegex);
-// 						console.log('lastCheckedLine: ', lastCheckedLine);
-// 						j++;
-// 					}
-// 					if (!matchedRegex){ // just in case we didn't find nextField for some reason
-// 						tempDiagnostics.push(createDiaIncorrectType(doc,lineString,i,i,sigmaKey,"array"));
-// 					} else {
-// 						console.log('last line j was at: ', lastCheckedLine);
-// 						const idxBeforeNextField = j-2;
-// 						const lastString = docLines[idxBeforeNextField]; // the line before nextField is the last line in the diagnostic
-// 						console.log('last line in current diagnostic: ', lastString);
-// 						tempDiagnostics.push(createDiaIncorrectType(doc,lastString,i,idxBeforeNextField,sigmaKey,"array"));
-// 					}
-// 				} else { // if author is for some reason the last field
-// 					tempDiagnostics.push(createDiaIncorrectType(doc,lineString,i,i,sigmaKey,"array"));
-// 				}
-// 				return tempDiagnostics;
-// 			}
-// 		}
-// 	}
-// 	return tempDiagnostics;
-// }
 
 
 function checkLowercaseTags(doc: TextDocument, docLines: Array<string>, parsedToJS: Record<string, unknown>){
@@ -650,22 +304,20 @@ function checkLowercaseTags(doc: TextDocument, docLines: Array<string>, parsedTo
 
 
 /**
- * Checks that the value of the author field is the correct type
- * The type of the author field should be a string, not a list, according to https://github.com/SigmaHQ/sigma/wiki/Rule-Creation-Guide
- * If the value of author field is a YAML mapping or sequence, diagnostic may be multiple lines
- * 
- * @param {TextDocument} doc has the contents of the current file
- * @param {Array<string>} docLines each line of the file as a string
- * @param {Record<string, unknown>} parsedToJS javascript object with parsed contents of yaml file
- * @return {tempDiagnostics} array of diagnostics to be displayed
- */
+* Checks that the value of the author field is the correct type
+* The type of the author field should be a string, not a list, according to https://github.com/SigmaHQ/sigma/wiki/Rule-Creation-Guide
+* If the value of author field is a YAML mapping or sequence, diagnostic may be multiple lines
+* 
+* @param {TextDocument} doc has the contents of the current file
+* @param {Array<string>} docLines each line of the file as a string
+* @param {Record<string, unknown>} parsedToJS javascript object with parsed contents of yaml file
+* @return {tempDiagnostics} array of diagnostics to be displayed
+*/
 function checkAuthor(doc: TextDocument, docLines: Array<string>, parsedToJS: Record<string, unknown>){
-	// 
 	const tempDiagnostics: Diagnostic[] = [];
 	const authorValue = parsedToJS.author;
 
-	//console.log('checkAuthor called');
-	// TODO add diagnostic for needing quotation marks around @ symbol in author value
+	// TODO add diagnostic for needing quotation marks around @ symbol in author value?
 
 	// value is invalid if not a string
 	if (typeof authorValue !== 'string' && !(authorValue instanceof String)){
@@ -709,27 +361,16 @@ function checkAuthor(doc: TextDocument, docLines: Array<string>, parsedToJS: Rec
 			}
 		}
 	}
-	// } else if (authorValue.includes("@") && !(authorValue.match(/^["'].*["']$/))){ 
-	// 	console.log("author Value:",authorValue);
-	// 	for (let i = 0; i < doc.lineCount; i++) {
-	// 		const lineString = docLines[i];
-	// 		if (lineString.match(/^author:/)) {
-	// 			tempDiagnostics.push(createDiaAtSymbolNeedsQuotes(doc,lineString, i));
-	// 			console.log("at statement reached");
-				
-	// 		}
-	// 	}
-	// } 
 	return tempDiagnostics;
 }
 
 /**
- * Checks that all required Sigma fields are present in the yaml file
- * @param {TextDocument} doc has the contents of the current file
- * @param {Array<string>} docLines each line of the file as a string
- * @param {Record<string, unknown>} parsedToJS javascript object with parsed contents of yaml file
- * @return {tempDiagnostics} array of diagnostics to be displayed
- */
+* Checks that all required Sigma fields are present in the yaml file
+* @param {TextDocument} doc has the contents of the current file
+* @param {Array<string>} docLines each line of the file as a string
+* @param {Record<string, unknown>} parsedToJS javascript object with parsed contents of yaml file
+* @return {tempDiagnostics} array of diagnostics to be displayed
+*/
 function checkRequiredFields(doc: TextDocument, docLines: Array<string>, parsedToJS: Record<string, unknown>) {
 	const firstLine = docLines[0];
 	const tempDiagnostics: Diagnostic[] = [];
@@ -742,15 +383,11 @@ function checkRequiredFields(doc: TextDocument, docLines: Array<string>, parsedT
 			console.log('missing: ', requiredFields[i]);
 		}
 	}
-	// TODO underline detection if condition is not there???
 	if (!keys.includes("detection")) {
-		console.log('detection is missing');
-		console.log('condition is missing');
 		missingFields.push("detection");
 		missingFields.push("condition");
 	} else {
 		if (!(typeof parsedToJS.detection === 'object') || parsedToJS.detection === null || !("condition" in parsedToJS.detection)){
-			console.log('condition is missing');
 			missingFields.push("condition");
 		}
 	}
@@ -760,24 +397,202 @@ function checkRequiredFields(doc: TextDocument, docLines: Array<string>, parsedT
 	return tempDiagnostics;
 }
 
+
+// Helper Functions to Create Diagnostic Objects
+
+function createDiaMissingReqField(
+	doc: TextDocument,
+	lineString: string, 
+    lineIndex: number,
+	missingTags: string
+): Diagnostic { 
+	// TODO range should include the next line(s) if the author value is a list
+	if (lineString == undefined){
+		lineString = '';
+	}
+	const diagnostic: Diagnostic = {
+		severity: DiagnosticSeverity.Error,
+		range: Range.create(lineIndex, 0, lineIndex, lineString.length),
+		message: `Sigma File is missing required field(s): ${missingTags}`,
+		source: 'umn-sigma-lsp',
+		code: "sigmaMissingReqField"
+	};
+	return diagnostic;
+}
+
+// this diagnostic could be on multiple lines
+function createDiaIncorrectType(
+    doc: TextDocument,
+	lastLineString: string, // the string of the last line
+    lineIndexStart: number,
+	lineIndexEnd: number,
+	sigmaKey: string,
+	requiredValue: string
+): Diagnostic { 
+	// TODO range should include the next line(s) if the author value is a list
+	const diagnostic: Diagnostic = {
+		severity: DiagnosticSeverity.Error,
+		range: Range.create(lineIndexStart, 0, lineIndexEnd, lastLineString.length),
+		message: `Value of key ${sigmaKey} must be of type ${requiredValue}`,
+		source: 'umn-sigma-lsp',
+		code: "sigmaIncorrectType"
+	};
+	return diagnostic;
+}
+
 /**
- * Checks that all fields are valid sigma keys
+ * Checks whether a sigma value is of the correct type for that key
  * @param {TextDocument} doc has the contents of the current file
- * @param {Array<string>} docLines each line of the file as a string
- * @param {Record<string, unknown>} parsedToJS javascript object with parsed contents of yaml file
+ * @param {string} keyString incorrect key that is out of order
+ * @param {string} lineIndex number line is on
+ * @param {string} regexMatchIndex line the key starts on
  * @return {tempDiagnostics} array of diagnostics to be displayed
  */
+function createDiaFieldOutOfOrder(
+    doc: TextDocument,
+	keyString: string,
+    lineIndex: number,
+	regexMatchIndex: number
+):  Diagnostic {
+    // create range that represents, where in the document the word is
+	let message, severity;
+	const diagnostic: Diagnostic = {
+		severity: severity,
+		range: Range.create(lineIndex,0,lineIndex,keyString.length),
+		message: "This field is not in the correct order, Please refer to: https://github.com/SigmaHQ/sigma-specification/blob/main/Sigma_specification.md",
+		source: 'umn-sigma-lsp',
+		code: "sigmaFieldOutOfOrder"
+	};
+    return diagnostic;
+}
 
-// TODO Ask Caleb what is an invalid field if there are arbitrary custom fields???
 
-// function checkInvalidFields(doc: TextDocument, docLines: Array<string>, parsedToJS: Record<string, unknown>) {
-// 	const keys = Object.keys(parsedToJS);
-// 	const validKeys = [];
-// 	for (let i=0; i<keys.length; i++){
-// 		if (!keys[i] in validKeys){
+// this diagnostic could be on multiple lines
+// lineStringEnd is the string of the last line
+function createDiaAuthorNotString(
+    doc: TextDocument,
+	lastLineString: string, 
+    lineIndexStart: number,
+	lineIndexEnd: number
+): Diagnostic { 
+	// TODO range should include the next line(s) if the author value is a list
+	const diagnostic: Diagnostic = {
+		severity: DiagnosticSeverity.Error,
+		range: Range.create(lineIndexStart, 0, lineIndexEnd, lastLineString.length),
+		message: 'Author value must be a string',
+		source: 'umn-sigma-lsp',
+		code: "sigmaAuthorNotString"
+	};
+	return diagnostic;
+}
 
-// 		}
-// 	}
-// }
+function createDiaTitleTooLong(
+    doc: TextDocument,
+	lineString: string,
+    lineIndex: number,
+	lengthThreshold: number // 50 (recommended max), or 256 (absolute max)
+):  Diagnostic {
+    // create range that represents, where in the document the word is
+	let message, severity;
+	if (lengthThreshold === 50){
+		severity = DiagnosticSeverity.Information;
+		message = "Title less than 50 characters is recommended (max length is 256)";
+	} else { // lengthThreshold === 256
+		severity = DiagnosticSeverity.Error;
+		message = "Title must be 256 characters or less";
+	}
+	const diagnostic: Diagnostic = {
+		severity: severity,
+		range: Range.create(lineIndex,0,lineIndex,lineString.length),
+		message: message,
+		source: 'umn-sigma-lsp',
+		code: "sigmaTitleTooLong"
+	};
+    return diagnostic;
+}
+
+// Following diagnostics credit to https://github.com/humpalum/vscode-sigma/blob/main/src/diagnostics.ts
+
+
+function createDiaLowercaseTag(
+    doc: TextDocument,
+	lineString: string, 
+    lineIndex: number,
+	targetString: string
+): Diagnostic {
+    // find where in the parsed yaml there is uppercase 
+    const index = lineString.indexOf(targetString);
+    const indexLength = targetString.length;
+
+	const diagnostic: Diagnostic = {
+		severity: DiagnosticSeverity.Warning,
+		range: Range.create(lineIndex, index, lineIndex, index + indexLength),
+		message: 'Tags should be lowercase only',
+		source: 'umn-sigma-lsp',
+		code: "sigmaLowercaseTag"
+	};
+	return diagnostic;
+}
+
+function createDiaSingleAll(
+    doc: TextDocument,
+	lineString: string,
+    lineIndex: number,
+): Diagnostic {
+    const index = lineString.indexOf("|all");
+    const indexLength = "|all".length;
+
+	const diagnostic: Diagnostic = {
+		severity: DiagnosticSeverity.Warning,
+		range: Range.create(lineIndex, index, lineIndex, index + indexLength),
+		message: 'Modifier: "|all" may not be a single entry',
+		source: 'umn-sigma-lsp',
+		code: "sigmaAllSingle"
+	};
+	return diagnostic;
+}
+
+function createDiaContainsInMiddle(
+    doc: TextDocument,
+	lineString: string,
+    lineIndex: number,
+): Diagnostic {
+    // find where in the line the 'contains' is mentioned
+    const index = lineString.indexOf("contains|");
+    let indexLength = "contains|".length;
+    let regexMatch = lineString.match("contains.+:");
+    if (regexMatch) {
+        indexLength = regexMatch[0].length;
+    } else {
+        regexMatch = lineString.match("contains.+$");
+        if (regexMatch) {
+            indexLength = regexMatch[0].length;
+        }
+    }
+	const diagnostic: Diagnostic = {
+		severity: DiagnosticSeverity.Warning,
+		range: Range.create(lineIndex, index, lineIndex, index + indexLength),
+		message: "Contains should only be at the end of modifiers",
+		source: 'umn-sigma-lsp',
+		code: "sigmaContainsMiddle"
+	};
+	return diagnostic;
+}
+
+function createDiaTrailingWhitespace(
+    doc: TextDocument,
+	lineString: string,
+    lineIndex: number,
+	matchLen: number
+): Diagnostic {
+    const diagnostic: Diagnostic = {
+		severity: DiagnosticSeverity.Information,
+		range: Range.create(lineIndex, lineString.length - matchLen,lineIndex,lineString.length),
+		message: "Trailing Whitespaces",
+		source: 'umn-sigma-lsp',
+		code: "sigmaTrailingWhitespace"
+	};
+	return diagnostic;
+}
 
 module.exports = {handleDiagnostics};
