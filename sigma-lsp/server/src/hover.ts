@@ -64,7 +64,7 @@ function getLineText(document: TextDocument, line: number): string {
 		start: { line, character: 0 },
 		end: { line: line + 1, character: 0 },
 	});
-  }
+}
 
 //Helper function to get Word Range
 function getWordRange(lineText: string, character: number): Range {
