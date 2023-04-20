@@ -9,9 +9,8 @@
 		"outDir": "out",
 		"types": ["jest"],
 	},
-	// "include": [
-	// 	"test/**/*",
-	// 	"**/*.spec.ts",
-	// 	"**/*.test.ts"],
-	"exclude": ["node_modules", ".vscode-test", "client"]
+
+	"exclude": ["node_modules", ".vscode-test", "client","test/**/*",
+	 	"**/*.spec.ts",
+	 	"**/*.test.ts"]
 }

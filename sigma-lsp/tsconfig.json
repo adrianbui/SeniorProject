@@ -13,6 +13,9 @@
 	"exclude": [
 		"node_modules",
 		".vscode-test",
+		"test/**/*",
+		"**/*.spec.ts",
+		"**/*.test.ts"
 	],
 	"references": [
 		{ "path": "./client" },
