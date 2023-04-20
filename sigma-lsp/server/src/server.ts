@@ -22,7 +22,7 @@ import * as YAML from "yaml";
 
 import {handleDiagnostics} from './diagnostics';
 import {handleHover} from './hover';
-import {handleCompletion} from './completion';
+import {handleCompletion, handleCompletionResolve} from './completion';
 
 import {
 	TextDocument
@@ -258,50 +258,16 @@ connection.onHover((textDocumentPosition: TextDocumentPositionParams): Hover | n
 // =================================================================
 // COMPLETION FUNCTIONALITY
 // This handler provides the initial list of the completion items.
-connection.onCompletion(
-	(_textDocumentPosition: TextDocumentPositionParams): CompletionItem[] => {
-		// The pass parameter contains the position of the text document in
-		// which code complete got requested. For the example we ignore this
-		// info and always provide the same completion items.
-	//console.log("onCompletion called");
-
-		return [
-			{
-				label: 'TypeScript',
-				kind: CompletionItemKind.Text,
-				data: 1
-			},
-			{
-				label: 'JavaScript',
-				kind: CompletionItemKind.Text,
-				data: 2
-			}
-		];
-	}
-);
 connection.onCompletion((textDocumentPosition: TextDocumentPositionParams): CompletionItem[] => {
-
 	return handleCompletion(documents,textDocumentPosition);
 
 });
 
 // This handler resolves additional information for the item selected in
 // the completion list.
-connection.onCompletionResolve(
-	(item: CompletionItem): CompletionItem => {
-		if (item.data === 1) {
-			item.detail = 'Sigma Attribute [required]';
-			item.documentation = 'A brief title for the rule that should contain what the rules is supposed to detect (max. 256 characters)';
-			return item;
-			
-		} else if (item.data === 2) {
-			item.detail = 'Sigma Attribute [optional]';
-			item.documentation = 'A short description of the rule and the malicious activity that can be detected (max. 65,535 characters)';
-			return item;
-		}
-		return item;
-	}
-);
+connection.onCompletionResolve((item: CompletionItem): CompletionItem => {
+	return handleCompletionResolve(item);
+});
 
 
 // Make the text document manager listen on the connection
