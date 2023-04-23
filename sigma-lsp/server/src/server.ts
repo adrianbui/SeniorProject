@@ -154,8 +154,7 @@ async function validateTextDocument(textDocument: TextDocument): Promise<void> {
 	const text = textDocument.getText();
 	const diagnostics: Diagnostic[] = [];
 	
-	const newDiagnostics = handleDiagnostics(textDocument);
-	diagnostics.push(...newDiagnostics);
+	
 
 	const parsedYamlDoc = YAML.parseDocument(text);
 
@@ -163,6 +162,9 @@ async function validateTextDocument(textDocument: TextDocument): Promise<void> {
 	// This could be a good alternative to parsing each line of text
 	const parsedToJS = parsedYamlDoc.toJS();
 	console.log('parsed to Js: ', parsedToJS);
+
+	const newDiagnostics = handleDiagnostics(textDocument, parsedToJS);
+	diagnostics.push(...newDiagnostics);
 
 	const errorsArr = parsedYamlDoc.errors;
 	for (let i=0; i<errorsArr.length; i++){
@@ -181,66 +183,7 @@ async function validateTextDocument(textDocument: TextDocument): Promise<void> {
 		}
 	}
 
-	// credit to https://github.com/humpalum/vscode-sigma/blob/411c66debbdbe5a90b8e815d310f0f82530df12a/src/diagnostics.ts
-	// try {
-	// 	const parsedYAML = YAML.parse(text);
-	// } catch (error) {
-	// 	console.log(error);
-	// 	if (error instanceof Error) {
-	// 		const newDiagnostic: Diagnostic = {
-	// 			severity: DiagnosticSeverity.Error,
-	// 			range: {
-	// 				start: textDocument.positionAt((error as any).pos[0]),
-	// 				end: textDocument.positionAt((error as any).pos[1])
-	// 			},
-	// 			message: error.message,
-	// 			source: 'umn-sigma-lsp'
-	// 		}
-	// 		diagnostics.push(newDiagnostic)
-	// 	}
-	// }
-	
-	const pattern = /\b[A-Z]{2,}\b/g;
-	const pattern2 = /^title:.{71,}/g;
-	let m: RegExpExecArray | null;
-	let m2: RegExpExecArray | null;
-	let problems = 0;
-
-	while ((m = pattern.exec(text)) && problems < settings.maxNumberOfProblems) {
-		problems++;
-		const diagnostic: Diagnostic = {
-			severity: DiagnosticSeverity.Warning,
-			range: {
-				start: textDocument.positionAt(m.index),
-				end: textDocument.positionAt(m.index + m[0].length)
-			},
-			message: `${m[0]} is all uppercase.`,
-			source: 'umn-sigma-lsp'
-		};
-
-	
-		if (hasDiagnosticRelatedInformationCapability) {
-			diagnostic.relatedInformation = [
-				{
-					location: {
-						uri: textDocument.uri,
-						range: Object.assign({}, diagnostic.range)
-					},
-					message: 'Spelling matters'
-				},
-				{
-					location: {
-						uri: textDocument.uri,
-						range: Object.assign({}, diagnostic.range)
-					},
-					message: 'Particularly for names'
-				}
-			];
-		}
-		diagnostics.push(diagnostic);
-	}
-
-	// Send the computed diagnostics to VSCode.
+	// // Send the computed diagnostics to VSCode.
 	connection.sendDiagnostics({ uri: textDocument.uri, diagnostics });
 }
 

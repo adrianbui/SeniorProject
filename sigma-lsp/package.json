@@ -23,20 +23,31 @@
 	"contributes": {
 		"languages": [
 			{
-				"id": "sigma",
-				"aliases": [
-					"sigma",
-					"sigma-syntax",
-					"sigmalang",
-					"SIGMA",
-					"Sigma"
+			"id": "sigma",
+			"aliases": [
+				"sigma",
+				"sigma-syntax",
+				"sigmalang",
+				"SIGMA",
+				"Sigma"
+			],
+			"icon": {
+				"light": "./images/Sigma_Icon_trans.png",
+				"dark": "./images/Sigma_Icon_trans.png"
+			},
+			"configuration": "./language-configuration.json",
+			"firstLine": "/^title: .*$/"
+			}
+		],
+		"grammars": [
+			{
+				"comments": [
+					"YAML syntax as base for Sigma",
+					"scopeName changed so that we can use it as base for injections"
 				],
-				"icon": {
-					"light": "./images/Sigma_Icon_trans.png",
-					"dark": "./images/Sigma_Icon_trans.png"
-				},
-				"configuration": "./language-configuration.json",
-				"firstLine": "/^title: .*$/"
+				"language": "sigma",
+				"scopeName": "source.sigma",
+				"path": "./YAML.tmLanguage.json"
 			}
 		],
 		"configuration": {
