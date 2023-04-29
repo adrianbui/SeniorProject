@@ -23,20 +23,20 @@
 	"contributes": {
 		"languages": [
 			{
-			"id": "sigma",
-			"aliases": [
-				"sigma",
-				"sigma-syntax",
-				"sigmalang",
-				"SIGMA",
-				"Sigma"
-			],
-			"icon": {
-				"light": "./images/Sigma_Icon_trans.png",
-				"dark": "./images/Sigma_Icon_trans.png"
-			},
-			"configuration": "./language-configuration.json",
-			"firstLine": "/^title: .*$/"
+				"id": "sigma",
+				"aliases": [
+					"sigma",
+					"sigma-syntax",
+					"sigmalang",
+					"SIGMA",
+					"Sigma"
+				],
+				"icon": {
+					"light": "./images/Sigma_Icon_trans.png",
+					"dark": "./images/Sigma_Icon_trans.png"
+				},
+				"configuration": "./language-configuration.json",
+				"firstLine": "/^title: .*$/"
 			}
 		],
 		"grammars": [
@@ -84,7 +84,6 @@
 		"test:watch": "jest --watch"
 	},
 	"devDependencies": {
-		"@types/mocha": "^9.1.0",
 		"@types/node": "^16.11.7",
 		"@typescript-eslint/eslint-plugin": "^5.42.0",
 		"@typescript-eslint/parser": "^5.42.0",
