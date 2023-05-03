@@ -13,9 +13,14 @@ import { fieldOrder, subFieldOrderLogSource } from './sigmaFieldOrder';
 // Some code adapted from https://github.com/humpalum/vscode-sigma/blob/main/src/diagnostics.ts
 
 export function handleDiagnostics(doc: TextDocument, parsedToJS: Record<string, unknown>) {
-    const lines = doc.getText().split('\n');
-	const diagnostics: Diagnostic[] = [];
-
+    const diagnostics: Diagnostic[] = [];
+	const docText = doc.getText();
+	if (!docText) {
+		return diagnostics;
+	} else if (!parsedToJS || typeof parsedToJS !== 'object') {
+		return diagnostics;
+	}
+	const lines = docText.split('\n');
 	
 	diagnostics.push(...checkRequiredFields(doc,lines,parsedToJS));
 	diagnostics.push(...checkForWrongKeys(doc, lines, parsedToJS));
@@ -302,67 +307,6 @@ function checkLowercaseTags(doc: TextDocument, docLines: Array<string>, parsedTo
 	return tempDiagnostics;
 }
 
-
-/**
-* Checks that the value of the author field is the correct type
-* The type of the author field should be a string, not a list, according to https://github.com/SigmaHQ/sigma/wiki/Rule-Creation-Guide
-* If the value of author field is a YAML mapping or sequence, diagnostic may be multiple lines
-* 
-* @param {TextDocument} doc has the contents of the current file
-* @param {Array<string>} docLines each line of the file as a string
-* @param {Record<string, unknown>} parsedToJS javascript object with parsed contents of yaml file
-* @return {tempDiagnostics} array of diagnostics to be displayed
-*/
-function checkAuthor(doc: TextDocument, docLines: Array<string>, parsedToJS: Record<string, unknown>){
-	const tempDiagnostics: Diagnostic[] = [];
-	const authorValue = parsedToJS.author;
-
-	// TODO add diagnostic for needing quotation marks around @ symbol in author value?
-
-	// value is invalid if not a string
-	if (typeof authorValue !== 'string' && !(authorValue instanceof String)){
-		// get the line that author is on
-		for (let i = 0; i < doc.lineCount; i++) {
-			const lineString = docLines[i];
-			if (lineString.match(/^author:/)) {
-				// get the next key so that the author diagnostic will be on all lines until the next key
-				
-				const keys = Object.keys(parsedToJS);
-				const nextIndex = keys.indexOf("author")+1;
-				const nextField = keys[nextIndex];
-				//console.log('next field after author: ', nextField);
-
-				if (nextField){ // if author isn't the last field
-					let j=i+1;
-					// finds the line that nextField is on
-					// the diagnostic will range from author to the line before nextField
-					const regex = new RegExp(`^${nextField}:`);
-					let lastCheckedLine, matchedRegex;
-					while (!matchedRegex && j<doc.lineCount){
-						lastCheckedLine = docLines[j];
-						matchedRegex = lastCheckedLine.match(regex);
-						//console.log('matched Regex: ', matchedRegex);
-						//console.log('lastCheckedLine: ', lastCheckedLine);
-						j++;
-					}
-					if (!matchedRegex){ // just in case we didn't find nextField for some reason
-						tempDiagnostics.push(createDiaAuthorNotString(doc,lineString,i,i));
-					} else {
-						//console.log('last line j was at: ', lastCheckedLine);
-						const idxBeforeNextField = j-2;
-						const lastString = docLines[idxBeforeNextField]; // the line before nextField is the last line in the diagnostic
-						//console.log('last line in author diagnostic: ', lastString);
-						tempDiagnostics.push(createDiaAuthorNotString(doc,lastString,i,idxBeforeNextField));
-					}
-				} else { // if author is for some reason the last field
-					tempDiagnostics.push(createDiaAuthorNotString(doc,lineString,i,i));
-				}
-				return tempDiagnostics;
-			}
-		}
-	}
-	return tempDiagnostics;
-}
 
 /**
 * Checks that all required Sigma fields are present in the yaml file
