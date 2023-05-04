@@ -23,7 +23,7 @@ export function handleDiagnostics(doc: TextDocument, parsedToJS: Record<string, 
 	const lines = docText.split('\n');
 	
 	diagnostics.push(...checkRequiredFields(doc,lines,parsedToJS));
-	diagnostics.push(...checkForWrongKeys(doc, lines, parsedToJS));
+	diagnostics.push(...checkFieldOrder(doc, lines, parsedToJS));
 	// call checkType on all keys including nested keys
 	diagnostics.push(...checkTypeOfAllKeys(parsedToJS, doc,lines));
 
@@ -128,7 +128,7 @@ function flattenObject(parsedToJS:Record<string, unknown>){
  * @param {Record<string, unknown>} parsedToJS javascript object with parsed contents of yaml file
  * @return {wrongKeys} array of keys that were in the incorrect order. 
  */
-function checkFieldOrder(parsedToJS:Record<string, unknown>){
+function checkFieldOrderHelper(parsedToJS:Record<string, unknown>){
 	const ordering:any = {}; // map for efficient lookup of sort index
     const sortOrder = fieldOrder; //fieldOrder is the correct order according to sigma docs
 	// TODO add sorting for sub fields of logsource
@@ -164,9 +164,9 @@ function checkFieldOrder(parsedToJS:Record<string, unknown>){
  * @param {Record<string, unknown>} parsedToJS javascript object with parsed contents of yaml file
  * @return {diagnostics} array of diagnostics to be displayed
  */
-function checkForWrongKeys(doc: TextDocument, docLines: Array<string>,parsedToJS:Record<string,unknown>){
+function checkFieldOrder(doc: TextDocument, docLines: Array<string>,parsedToJS:Record<string,unknown>){
 	const diagnostics: Diagnostic[] = [];
-	const wrongKeysArr = checkFieldOrder(parsedToJS);
+	const wrongKeysArr = checkFieldOrderHelper(parsedToJS);
 	const numWrongKeys = wrongKeysArr.length;
 	if (numWrongKeys === 0) { // no fields are in the wrong order
 		return diagnostics;
